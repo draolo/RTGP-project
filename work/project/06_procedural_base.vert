@@ -32,8 +32,10 @@ out vec2 interp_UV;
 void main()
 {
 	// I assign the values to a variable with "out" qualifier so to use the per-fragment interpolated values in the Fragment shader
-	interp_UV = UV;
 
 	// transformations are applied to each vertex
     gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0f);
+
+	interp_UV = vec2(gl_Position);
+
 }

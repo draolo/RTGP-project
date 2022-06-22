@@ -44,6 +44,8 @@ positive Z axis points "outside" the screen
 // Std. Includes
 #include <string>
 
+#include <algorithm>
+
 // Loader estensions OpenGL
 // http://glad.dav1d.de/
 // THIS IS OPTIONAL AND NOT REQUIRED, ONLY USE THIS IF YOU DON'T WANT GLAD TO INCLUDE windows.h
@@ -107,8 +109,8 @@ GLboolean wireframe = GL_FALSE;
 
 // Uniforms to pass to shaders
 // frequency and power parameters for noise generation (for all subroutines)
-GLfloat frequency = 10.0;
-GLfloat power = 1.0;
+GLfloat frequency = 1.0;
+GLfloat power = 10.0;
 // number of harmonics (used in the turbulence-based subroutines)
 GLfloat harmonics = 4.0;
 // velocity for noise animation effect (for the animated subroutine)
@@ -135,7 +137,7 @@ int main()
   glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
   // we create the application's window
-    GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "RGP_lecture02b", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "Project Milanesi 939908", nullptr, nullptr);
     if (!window)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -225,6 +227,10 @@ int main()
         if (spinning)
             orientationY+=(deltaTime*spin_speed);
 
+        power-=deltaTime*0.5;
+        if(power<0.0){
+            power=4.0;
+        }
         /////////////////// PLANE ////////////////////////////////////////////////
         // We render a plane under the objects. We apply the fullcolor shader to the plane, and we do not apply the rotation applied to the other objects.
         plane_shader.Use();
@@ -261,7 +267,7 @@ int main()
         GLint powerLocation = glGetUniformLocation(noise_shader.Program, "power");
         GLint timerLocation = glGetUniformLocation(noise_shader.Program, "timer");
         GLint harmonicsLocation = glGetUniformLocation(noise_shader.Program, "harmonics");
-
+         std::cout << "power:" << power<<std::endl;
         // we assign the value to the uniform variable
         glUniform1f(frequencyLocation, frequency);
         glUniform1f(powerLocation, power);
