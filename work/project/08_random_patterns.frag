@@ -21,11 +21,10 @@ Universita' degli Studi di Milano
 
 #version 410 core
 
-// output shader variable
-out vec4 colorFrag;
-
-// UV texture coordinates, interpolated in each fragment by the rasterization process
+out vec4 FragColor;
+in vec2 texCoords;
 in vec2 interp_UV;
+uniform sampler2D screenTexture;
 
 // force and power of noise
 uniform float frequency;
@@ -36,6 +35,8 @@ uniform float timer;
 
 // number of octaves to create and sum
 uniform float harmonics;
+
+uniform float time;
 
 /////////////////////////////////////////////////////////////////////
 // we must copy and paste the code inside our shaders
@@ -161,6 +162,9 @@ subroutine vec4 ran_patterns();
 // Subroutine Uniform (it is conceptually similar to a C pointer function)
 subroutine uniform ran_patterns Random_Patterns;
 
+
+
+
 //////////////////////////////////////////
 // a subroutine for a simple noise shader
 subroutine(ran_patterns)
@@ -172,6 +176,18 @@ vec4 Noise() // this name is the one which is detected by the SetupShaders() fun
   //in this case, we are creating a grayscale image
   return vec4(vec3(color),1.0);
 }
+
+subroutine(ran_patterns)
+vec4 ReadTexture() // this name is the one which is detected by the SetupShaders() function in the main application, and the one used to swap subroutines
+{
+    //vec3 color = texture( renderedTexture, interp_UV + 0.005*vec2( sin(time+1024.0*interp_UV.x),cos(time+768.0*interp_UV.y)) ).xyz;
+   // return vec4(1.0,1.0,1.0,1.0);
+
+    vec3 color = vec3(0.0f);
+        color = vec3(texture(screenTexture, texCoords.st));
+    return vec4(1.0f,0.0f,0.0f, 1.0f);
+}
+
 
 /////////////////////////////////////////
 // a subroutine for a colored noise shader
@@ -304,5 +320,5 @@ void main(void)
 {
     // we call the pointer function Random_Patterns():
     // the subroutine selected in the main application will be called and executed
-  	colorFrag = Random_Patterns();
+  	FragColor = Random_Patterns();
 }

@@ -14,13 +14,13 @@ Universita' degli Studi di Milano
 
 #version 410 core
 
-// output shader variable
-out vec4 colorFrag;
+// Outputs colors in RGBA
+out vec4 FragColor;
 
 // color to assign to the fragments: it is passed from the application
 uniform vec3 colorIn;
 
 void main()
 {
-    colorFrag = vec4(colorIn,1.0);
+    FragColor = vec4(colorIn,1);
 }
