@@ -79,6 +79,11 @@ positive Z axis points "outside" the screen
 // dimensions of application's window
 GLuint screenWidth = 800, screenHeight = 600;
 
+GLfloat frequency = 12.0;
+GLfloat power = 4.0;
+// number of harmonics (used in the turbulence-based subroutines)
+GLfloat harmonics = 4.0;
+
 enum render_passes{RENDER, NOISE};
 
 // callback function for keyboard events
@@ -109,12 +114,6 @@ GLboolean spinning = GL_TRUE;
 // boolean to activate/deactivate wireframe rendering
 GLboolean wireframe = GL_FALSE;
 
-// Uniforms to pass to shaders
-// frequency and power parameters for noise generation (for all subroutines)
-GLfloat frequency = 1.0;
-GLfloat power = 4.0;
-// number of harmonics (used in the turbulence-based subroutines)
-GLfloat harmonics = 4.0;
 // velocity for noise animation effect (for the animated subroutine)
 GLfloat speed = 5.0;
 
@@ -312,8 +311,8 @@ int main()
         if (spinning)
             orientationY+=(deltaTime*spin_speed);
 
-        power-=deltaTime*0.5;
-        if(power<0.0){
+        power-=deltaTime*0.5*power;
+        if(power<0.02){
             power=4.0;
         }
         /////////////////// PLANE ////////////////////////////////////////////////
@@ -409,6 +408,15 @@ int main()
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		texture_shader.Use();
+        GLint frequencyLocation = glGetUniformLocation(texture_shader.Program, "frequency");
+        GLint powerLocation = glGetUniformLocation(texture_shader.Program, "power");
+        GLint harmonicsLocation = glGetUniformLocation(texture_shader.Program, "harmonics");
+
+        // we assign the value to the uniform variable
+        glUniform1f(frequencyLocation, frequency);
+        glUniform1f(powerLocation, power);
+        glUniform1f(harmonicsLocation, harmonics);
+
 
 		// Draw the framebuffer rectangle
 		glBindVertexArray(rectVAO);
