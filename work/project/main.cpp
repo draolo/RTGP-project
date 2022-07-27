@@ -76,6 +76,8 @@ positive Z axis points "outside" the screen
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#define MAX_HIT 16
+
 // dimensions of application's window
 GLuint screenWidth = 800, screenHeight = 600;
 
@@ -84,10 +86,21 @@ GLfloat power = 4.0;
 // number of harmonics (used in the turbulence-based subroutines)
 GLfloat harmonics = 4.0;
 
+GLfloat powers[MAX_HIT];
+GLfloat hitPoints[2*MAX_HIT];
+int hit_index=0;
+
 enum render_passes{RENDER, NOISE};
 
-// callback function for keyboard events
+// callback function for mouse and keyboard events
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode);
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
+
+
+// 
+void update_hits(float deltaTime);
+
+bool add_hit(float normx, float normy);
 
 // index of the current shader subroutine (= 0 in the beginning)
 GLuint current_subroutine = 0;
@@ -163,6 +176,7 @@ int main()
 
     // we put in relation the window and the callbacks
     glfwSetKeyCallback(window, key_callback);
+    glfwSetMouseButtonCallback(window,mouse_button_callback);
 
     // we disable the mouse cursor
     //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -274,6 +288,11 @@ int main()
     glm::mat4 bunnyModelMatrix = glm::mat4(1.0f);
     glm::mat3 bunnyNormalMatrix = glm::mat3(1.0f);
     glm::mat4 planeModelMatrix = glm::mat4(1.0f);
+    
+    //set up the hit manager
+    for(int i=0;i<MAX_HIT;i++){
+        powers[i]=0.0f;
+    }
 
     // Rendering loop: this code is executed at each frame
     while(!glfwWindowShouldClose(window))
@@ -311,10 +330,8 @@ int main()
         if (spinning)
             orientationY+=(deltaTime*spin_speed);
 
-        power-=deltaTime*0.5*power;
-        if(power<0.02){
-            power=4.0;
-        }
+        update_hits(deltaTime);
+
         /////////////////// PLANE ////////////////////////////////////////////////
         // We render a plane under the objects. We apply the fullcolor shader to the plane, and we do not apply the rotation applied to the other objects.
         basic_shader.Use();
@@ -358,6 +375,7 @@ int main()
         GLint ColorLocation = glGetUniformLocation(basic_shader.Program, "colorIn");
         // we assign the value to the uniform variables
         glUniform3fv(ColorLocation, 1, objectColor);
+        
 
         // we reset to identity at each frame
         sphereModelMatrix = glm::mat4(1.0f);
@@ -409,12 +427,18 @@ int main()
 
 		texture_shader.Use();
         GLint frequencyLocation = glGetUniformLocation(texture_shader.Program, "frequency");
-        GLint powerLocation = glGetUniformLocation(texture_shader.Program, "power");
+        GLint hitPointNumberLocation = glGetUniformLocation(texture_shader.Program, "contactPointNumber");
+        GLint hitPointLocation = glGetUniformLocation(texture_shader.Program, "normalizedContactPoints");
+        GLint powersLocation = glGetUniformLocation(texture_shader.Program, "powers");
+        
+
         GLint harmonicsLocation = glGetUniformLocation(texture_shader.Program, "harmonics");
 
         // we assign the value to the uniform variable
+        glUniform1i(hitPointNumberLocation, MAX_HIT);
         glUniform1f(frequencyLocation, frequency);
-        glUniform1f(powerLocation, power);
+        glUniform1fv(powersLocation,MAX_HIT, powers);
+        glUniform2fv(hitPointLocation,MAX_HIT, hitPoints);
         glUniform1f(harmonicsLocation, harmonics);
 
 
@@ -531,4 +555,39 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             PrintCurrentShader(current_subroutine);
         }
     }
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+    if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) 
+    {
+       double xpos, ypos;
+       //getting cursor position
+       glfwGetCursorPos(window, &xpos, &ypos);
+       if(add_hit(xpos/screenWidth,1-(ypos/screenHeight))){
+        cout << "Hit Position at (" << xpos << " : " << ypos<<")" << endl;
+       }
+
+    }
+}
+
+
+void update_hits(float deltaTime){
+    for(int i=0; i<MAX_HIT;i++){
+        powers[i]-=deltaTime*0.5*powers[i];
+        if(powers[i]<0.02){
+            powers[i]=0;
+        }
+    }
+}
+
+bool add_hit(float normx, float normy){
+    if(powers[hit_index]!=0){
+        return false;
+    }
+    hitPoints[2*hit_index]=normx;
+    hitPoints[2*hit_index+1]=normy;
+    powers[hit_index]=power;
+    hit_index=(hit_index+1)%MAX_HIT;
+    return true;
 }

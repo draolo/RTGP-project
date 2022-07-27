@@ -5,12 +5,17 @@ in vec2 texCoords;
 
 // force and power of noise
 uniform float frequency;
-uniform float power;
-
 
 // number of octaves to create and sum
 uniform float harmonics;
 
+//
+uniform vec2 normalizedContactPoints[16];
+uniform float powers[16];
+
+uniform int contactPointNumber;
+
+// texture with the original rendering
 uniform sampler2D screenTexture;
 
 /////////////////////////////////////////////////////////////////////
@@ -105,6 +110,7 @@ float snoise(vec3 v)
   vec3 p2 = vec3(a1.xy,h.z);
   vec3 p3 = vec3(a1.zw,h.w);
 
+
 //Normalise gradients
   vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
   p0 *= norm.x;
@@ -117,6 +123,7 @@ float snoise(vec3 v)
   m = m * m;
   return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1),
                                 dot(p2,x2), dot(p3,x3) ) );
+                                
   }
 
 ////////////////////////////////////////////////////////////////////
@@ -132,27 +139,10 @@ float aastep(float threshold, float value) {
 ////////////////////////////////////////////////////////////////////
 
 
-const float offset_x = 1.0f / 800.0f;  
-const float offset_y = 1.0f / 800.0f;  
-
-vec2 offsets[9] = vec2[]
-(
-    vec2(-offset_x,  offset_y), vec2( 0.0f,    offset_y), vec2( offset_x,  offset_y),
-    vec2(-offset_x,  0.0f),     vec2( 0.0f,    0.0f),     vec2( offset_x,  0.0f),
-    vec2(-offset_x, -offset_y), vec2( 0.0f,   -offset_y), vec2( offset_x, -offset_y) 
-);
-
-float kernel[9] = float[]
-(
-    1,  1, 1,
-    1, -8, 1,
-    1,  1, 1
-);
-
-vec4 TurbulenceAAstep()
+vec4 TurbulenceAAstep(float p)
 {
 
-  float p = power;
+  //float p = power;
   float f = frequency;
   float value = 0.0;
   for (int i=0;i<harmonics;i++)
@@ -167,14 +157,28 @@ vec4 TurbulenceAAstep()
   if(keep<0.5){
     return texture(screenTexture, texCoords.st);
   }
+ /* if(keep!=1.){
+  return vec4(1.0,0.0,0.0,1.0);
+  }*/
   //in this case, we are creating a grayscale image
   return vec4(vec3(0.0),1.0);
 }
 
 void main()
 {
-    vec3 color = vec3(0.0f);
     //for(int i = 0; i < 9; i++)
     //    color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * kernel[i];
-    FragColor = TurbulenceAAstep();//vec4(color, 1.0f);
+   // FragColor = TurbulenceAAstep();//vec4(color, 1.0f);
+    float impacted=0;
+    for(int i=0;i<contactPointNumber;i++){
+      if((powers[i]!=0)&&distance(normalizedContactPoints[i],texCoords.st)<0.15){
+        impacted+=powers[i];
+      }
+    }
+    if(impacted!=0){
+      FragColor = TurbulenceAAstep(impacted);//vec4(color, 1.0f);
+    }else{
+      //FragColor = TurbulenceAAstep(1);//vec4(color, 1.0f);
+      FragColor=texture(screenTexture, texCoords.st);
+    }
 }
