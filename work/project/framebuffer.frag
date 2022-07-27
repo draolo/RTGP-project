@@ -139,15 +139,16 @@ float aastep(float threshold, float value) {
 ////////////////////////////////////////////////////////////////////
 
 
-vec4 TurbulenceAAstep(float p)
+int TurbulenceAAstep(float power, vec2 pos,int t)
 {
 
-  //float p = power;
-  float f = frequency;
+  float p = power;
+  float f = frequency*t;
   float value = 0.0;
-  for (int i=0;i<harmonics;i++)
+  float h=harmonics;
+  for (int i=0;i<h;i++)
   {
-      value += p*snoise(vec3(texCoords*f, 0.0));
+      value += p*snoise(vec3((texCoords+pos)*f, 0));
       p*=0.5;
       f*=2.0;
   }
@@ -155,13 +156,13 @@ vec4 TurbulenceAAstep(float p)
   // we apply aastep to the turbulence result to obtain a "cow skin" effect
   float keep = aastep(0.05,value);
   if(keep<0.5){
-    return texture(screenTexture, texCoords.st);
+    return 0;
   }
  /* if(keep!=1.){
   return vec4(1.0,0.0,0.0,1.0);
   }*/
   //in this case, we are creating a grayscale image
-  return vec4(vec3(0.0),1.0);
+  return 1;
 }
 
 void main()
@@ -169,14 +170,16 @@ void main()
     //for(int i = 0; i < 9; i++)
     //    color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * kernel[i];
    // FragColor = TurbulenceAAstep();//vec4(color, 1.0f);
-    float impacted=0;
+    int impacted=0;
+    int n=1;
     for(int i=0;i<contactPointNumber;i++){
       if((powers[i]!=0)&&distance(normalizedContactPoints[i],texCoords.st)<0.15){
-        impacted+=powers[i];
+        impacted+=TurbulenceAAstep(powers[i],normalizedContactPoints[i],n);
+        n++;
       }
     }
     if(impacted!=0){
-      FragColor = TurbulenceAAstep(impacted);//vec4(color, 1.0f);
+      FragColor = vec4(vec3(0), 1.0);//vec4(color, 1.0f);
     }else{
       //FragColor = TurbulenceAAstep(1);//vec4(color, 1.0f);
       FragColor=texture(screenTexture, texCoords.st);

@@ -82,7 +82,8 @@ positive Z axis points "outside" the screen
 GLuint screenWidth = 800, screenHeight = 600;
 
 GLfloat frequency = 12.0;
-GLfloat power = 4.0;
+GLfloat power = 0.0;
+GLfloat hitDamage =4.0;
 // number of harmonics (used in the turbulence-based subroutines)
 GLfloat harmonics = 4.0;
 
@@ -573,10 +574,13 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
 
 void update_hits(float deltaTime){
+    power-=deltaTime*0.5*power;
+    if(power<0.02){
+            power=0;
+    }
     for(int i=0; i<MAX_HIT;i++){
-        powers[i]-=deltaTime*0.5*powers[i];
-        if(powers[i]<0.02){
-            powers[i]=0;
+        if(powers[i]>power){
+            powers[i]=power;
         }
     }
 }
@@ -587,7 +591,8 @@ bool add_hit(float normx, float normy){
     }
     hitPoints[2*hit_index]=normx;
     hitPoints[2*hit_index+1]=normy;
-    powers[hit_index]=power;
+    powers[hit_index]=hitDamage;
+    power=hitDamage;
     hit_index=(hit_index+1)%MAX_HIT;
     return true;
 }
