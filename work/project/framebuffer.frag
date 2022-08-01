@@ -1,5 +1,7 @@
 #version 410 core
 
+#define MAX_OFFSET 0.1
+
 out vec4 FragColor;
 in vec2 texCoords;
 
@@ -173,7 +175,21 @@ void main()
     int impacted=0;
     int n=1;
     for(int i=0;i<contactPointNumber;i++){
-      if((powers[i]!=0)&&distance(normalizedContactPoints[i],texCoords.st)<0.15){
+      vec2 connecting=texCoords.st-normalizedContactPoints[i];
+      //if no power or far away from the impact point skip
+      if((powers[i]==0)||(length(connecting)>MAX_OFFSET+0.15)){
+        continue;
+      }
+
+      //add perling noise loop th the the border of the impacted area
+      float x=dot(normalize(connecting), vec2(1,0));
+      float a= acos(x);
+      float y=sin(a);
+      //coud be any offset, just to have a more randomic shape
+      vec2 offset=vec2(x,y)+texCoords.st;
+      float noise= snoise(vec3(offset*1.7,0))*MAX_OFFSET;
+      
+      if((length(connecting)<noise+0.15)){
         impacted+=TurbulenceAAstep(powers[i],normalizedContactPoints[i],n);
         n++;
       }
