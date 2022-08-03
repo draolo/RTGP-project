@@ -1,6 +1,9 @@
 #version 410 core
 
 #define MAX_OFFSET 0.1
+#define BLUR_SIZE 30
+#define width 800
+#define heigth 600
 
 out vec4 FragColor;
 in vec2 texCoords;
@@ -17,9 +20,19 @@ uniform float powers[16];
 
 uniform int contactPointNumber;
 
+//uniform int width;
+//uniform float heigth;
+
 // texture with the original rendering
 uniform sampler2D screenTexture;
 
+
+vec2 getTexelUnit(){
+  vec2 pippo= vec2(1./width,1./heigth);
+  return pippo;
+}
+
+float blurCoeff[61]={0.00047108753187090845,0.0006299954542634891,0.0008342476118513276,0.0010938911084409344,0.0014202820421456586,0.0018259812420950796,0.0023245510069993323,0.002930237054811048,0.00365752422443188,0.004520561042608063,0.005532457051297556,0.0067044675016952465,0.008045092096580709,0.009559127051781698,0.011246721745323141,0.013102501343509586,0.015114823683117182,0.017265241071896104,0.019528234511337204,0.021871278517810892,0.02425527914005976,0.02663540650524366,0.02896231750779124,0.031183735942891172,0.03324632882505008,0.03509779144363722,0.03668903252214707,0.037976337009618694,0.03892337931271162,0.03950296513759527,0.03969824751877432,0.03950296513759527,0.03892337931271162,0.037976337009618694,0.03668903252214707,0.03509779144363722,0.03324632882505008,0.031183735942891172,0.02896231750779124,0.02663540650524366,0.02425527914005976,0.021871278517810892,0.019528234511337204,0.017265241071896104,0.015114823683117182,0.013102501343509586,0.011246721745323141,0.009559127051781698,0.008045092096580709,0.0067044675016952465,0.005532457051297556,0.004520561042608063,0.00365752422443188,0.002930237054811048,0.0023245510069993323,0.0018259812420950796,0.0014202820421456586,0.0010938911084409344,0.0008342476118513276,0.0006299954542634891,0.00047108753187090845};
 /////////////////////////////////////////////////////////////////////
 // we must copy and paste the code inside our shaders
 // it is not possible to include or to link an external file
@@ -167,6 +180,19 @@ int TurbulenceAAstep(float power, vec2 pos,int t)
   return 1;
 }
 
+vec3 horizzontalBlur(){
+  vec2 unit=getTexelUnit();
+  vec4 color=vec4(0);
+  
+  for(int i=0;i<=2*BLUR_SIZE;i++ ){
+    float x_offset=((i-BLUR_SIZE)*unit.x);
+    //float x_offset=texCoords.x+((float)(i-BLUR_SIZE)*unit.x);
+    vec2 offset= vec2(x_offset,0.0);
+    color+=texture(screenTexture, texCoords.st+offset)*blurCoeff[i];
+  }
+  return vec3(color);
+}
+
 void main()
 {
     //for(int i = 0; i < 9; i++)
@@ -195,9 +221,11 @@ void main()
       }
     }
     if(impacted!=0){
-      FragColor = vec4(vec3(0), 1.0);//vec4(color, 1.0f);
+      FragColor = vec4(horizzontalBlur(),0);//vec4(vec3(0), 1.0);//vec4(color, 1.0f);
     }else{
       //FragColor = TurbulenceAAstep(1);//vec4(color, 1.0f);
       FragColor=texture(screenTexture, texCoords.st);
     }
+    FragColor = vec4(horizzontalBlur(),1);//vec4(vec3(0), 1.0);//vec4(color, 1.0f);
+
 }
