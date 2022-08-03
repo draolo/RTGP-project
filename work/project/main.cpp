@@ -125,6 +125,28 @@ GLfloat spin_speed = 30.0f;
 // boolean to start/stop animated rotation on Y angle
 GLboolean spinning = GL_TRUE;
 
+glm::vec3 lightPos0 = glm::vec3(5.0f, 10.0f, 10.0f);
+//GLfloat lightColor[] = {1.0f,1.0f,1.0f};
+
+// diffusive, specular and ambient components
+GLfloat diffuseColor[] = {1.0f,0.0f,0.0f};
+GLfloat specularColor[] = {1.0f,1.0f,1.0f};
+GLfloat ambientColor[] = {0.1f,0.1f,0.1f};
+// weights for the diffusive, specular and ambient components
+GLfloat Kd = 0.5f;
+GLfloat Ks = 0.4f;
+GLfloat Ka = 0.1f;
+// shininess coefficient for Phong and Blinn-Phong shaders
+GLfloat shininess = 25.0f;
+
+// roughness index for GGX shader
+GLfloat alpha = 0.2f;
+// Fresnel reflectance at 0 degree (Schlik's approximation)
+GLfloat F0 = 0.9f;
+
+GLfloat planeMaterial[] = {0.0f,0.5f,0.0f};
+
+
 // boolean to activate/deactivate wireframe rendering
 GLboolean wireframe = GL_FALSE;
 
@@ -202,13 +224,16 @@ int main()
 
     // we create the Shader Program used for the plane
 
-    Shader basic_shader("00_basic.vert", "01_fullcolor.frag");
+    Shader basic_shader("09_illumination_models.vert", "10_illumination_models.frag");
 
     // we create the Shader Program used for objects (which presents different subroutines we can switch)
     Shader texture_shader = Shader("framebuffer.vert", "framebuffer.frag");
     // we parse the Shader Program to search for the number and names of the subroutines. 
     // the names are placed in the shaders vector
-    SetupShader(texture_shader.Program);
+    SetupShader(basic_shader.Program);
+    // we print on console the name of the first subroutine used
+    PrintCurrentShader(current_subroutine);
+    //SetupShader(texture_shader.Program);
     // we print on console the name of the first subroutine used
 
 
@@ -216,8 +241,8 @@ int main()
 
     glEnable(GL_DEPTH_TEST);
 
-	// Enables Cull Facing
-	glEnable(GL_CULL_FACE);
+	// Enables Cull Facing //cull face is not good :D
+	//glEnable(GL_CULL_FACE);
 	// Keeps front faces
 	glCullFace(GL_FRONT);
 	// Uses counter clock-wise standard
@@ -270,7 +295,8 @@ int main()
 
 
 
-    // we load the model(s) (code of Model class is in include/utils/model_v1.h)
+// we load the model(s) (code of Model class is in include/utils/model_v1.h)
+     // we load the model(s) (code of Model class is in include/utils/model_v1.h)
     Model cubeModel("../../models/cube.obj");
     Model sphereModel("../../models/sphere.obj");
     Model bunnyModel("../../models/bunny_lp.obj");
@@ -289,6 +315,7 @@ int main()
     glm::mat4 bunnyModelMatrix = glm::mat4(1.0f);
     glm::mat3 bunnyNormalMatrix = glm::mat3(1.0f);
     glm::mat4 planeModelMatrix = glm::mat4(1.0f);
+    glm::mat3 planeNormalMatrix = glm::mat3(1.0f);
     
     //set up the hit manager
     for(int i=0;i<MAX_HIT;i++){
@@ -310,7 +337,7 @@ int main()
         basic_shader.Use();
         // we determine the time passed from the beginning
         // and we calculate the time difference between current frame rendering and the previous one
-        GLfloat currentFrame = glfwGetTime();
+       GLfloat currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
@@ -336,29 +363,64 @@ int main()
         /////////////////// PLANE ////////////////////////////////////////////////
         // We render a plane under the objects. We apply the fullcolor shader to the plane, and we do not apply the rotation applied to the other objects.
         basic_shader.Use();
+        // for the plane, we use only Lambert model.
+        // Thus, we search inside the Shader Program the name of the subroutine, and we get the numerical index
+        GLuint index = glGetSubroutineIndex(basic_shader.Program, GL_FRAGMENT_SHADER, "Lambert");
+        // we activate the subroutine using the index
+        glUniformSubroutinesuiv( GL_FRAGMENT_SHADER, 1, &index);
 
         // we pass projection and view matrices to the Shader Program of the plane
         glUniformMatrix4fv(glGetUniformLocation(basic_shader.Program, "projectionMatrix"), 1, GL_FALSE, glm::value_ptr(projection));
         glUniformMatrix4fv(glGetUniformLocation(basic_shader.Program, "viewMatrix"), 1, GL_FALSE, glm::value_ptr(view));
 
         // we determine the position in the Shader Program of the uniform variables
-        GLint planeColorLocation = glGetUniformLocation(basic_shader.Program, "colorIn");
+        GLint pointLightLocation = glGetUniformLocation(basic_shader.Program, "pointLightPosition");
+        GLint matDiffuseLocation = glGetUniformLocation(basic_shader.Program, "diffuseColor");
+        GLint kdLocation = glGetUniformLocation(basic_shader.Program, "Kd");
+
         // we assign the value to the uniform variables
-        glUniform3fv(planeColorLocation, 1, planeColor);
+        glUniform3fv(pointLightLocation, 1, glm::value_ptr(lightPos0));
+        glUniform3fv(matDiffuseLocation, 1, planeMaterial);
+        glUniform1f(kdLocation, Kd);
 
         // we create the transformation matrix
         // we reset to identity at each frame
         planeModelMatrix = glm::mat4(1.0f);
+        planeNormalMatrix = glm::mat3(1.0f);
         planeModelMatrix = glm::translate(planeModelMatrix, glm::vec3(0.0f, -1.0f, 0.0f));
         planeModelMatrix = glm::scale(planeModelMatrix, glm::vec3(10.0f, 1.0f, 10.0f));
+        planeNormalMatrix = glm::inverseTranspose(glm::mat3(view*planeModelMatrix));
         glUniformMatrix4fv(glGetUniformLocation(basic_shader.Program, "modelMatrix"), 1, GL_FALSE, glm::value_ptr(planeModelMatrix));
+        glUniformMatrix3fv(glGetUniformLocation(basic_shader.Program, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(planeNormalMatrix));
 
         // we render the plane
         planeModel.Draw();
 
-
         /////////////////// OBJECTS ////////////////////////////////////////////////
+        // We use the same Shader Program for the objects, but in this case we will do shaders swapping
+        // we search inside the Shader Program the name of the subroutine currently selected, and we get the numerical index
+        index = glGetSubroutineIndex(basic_shader.Program, GL_FRAGMENT_SHADER, shaders[current_subroutine].c_str());
+        // we activate the subroutine using the index (this is where shaders swapping happens)
+        glUniformSubroutinesuiv( GL_FRAGMENT_SHADER, 1, &index);
 
+        // we determine the position in the Shader Program of the uniform variables
+        GLint matAmbientLocation = glGetUniformLocation(basic_shader.Program, "ambientColor");
+        GLint matSpecularLocation = glGetUniformLocation(basic_shader.Program, "specularColor");
+        GLint kaLocation = glGetUniformLocation(basic_shader.Program, "Ka");
+        GLint ksLocation = glGetUniformLocation(basic_shader.Program, "Ks");
+        GLint shineLocation = glGetUniformLocation(basic_shader.Program, "shininess");
+        GLint alphaLocation = glGetUniformLocation(basic_shader.Program, "alpha");
+        GLint f0Location = glGetUniformLocation(basic_shader.Program, "F0");
+
+        // we assign the value to the uniform variables
+        glUniform3fv(matDiffuseLocation, 1, diffuseColor);
+        glUniform3fv(matAmbientLocation, 1, ambientColor);
+        glUniform3fv(matSpecularLocation, 1, specularColor);
+        glUniform1f(kaLocation, Ka);
+        glUniform1f(ksLocation, Ks);
+        glUniform1f(shineLocation, shininess);
+        glUniform1f(alphaLocation, alpha);
+        glUniform1f(f0Location, F0);
 
         // SPHERE
         /*
@@ -371,13 +433,6 @@ int main()
             "Two column vectors X and Y are perpendicular if and only if XT.Y=0. If We're going to transform X by a matrix M, we need to transform Y by some matrix N so that (M.X)T.(N.Y)=0. Using the identity (A.B)T=BT.AT, this becomes (XT.MT).(N.Y)=0 => XT.(MT.N).Y=0. If MT.N is the identity matrix then this reduces to XT.Y=0. And MT.N is the identity matrix if and only if N=(MT)-1, i.e. N is the inverse of the transpose of M.
 
         */
-
-        // we determine the position in the Shader Program of the uniform variables
-        GLint ColorLocation = glGetUniformLocation(basic_shader.Program, "colorIn");
-        // we assign the value to the uniform variables
-        glUniform3fv(ColorLocation, 1, objectColor);
-        
-
         // we reset to identity at each frame
         sphereModelMatrix = glm::mat4(1.0f);
         sphereNormalMatrix = glm::mat3(1.0f);
@@ -389,7 +444,7 @@ int main()
         glUniformMatrix4fv(glGetUniformLocation(basic_shader.Program, "modelMatrix"), 1, GL_FALSE, glm::value_ptr(sphereModelMatrix));
         glUniformMatrix3fv(glGetUniformLocation(basic_shader.Program, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(sphereNormalMatrix));
 
-        // we render the model
+        // we render the sphere
         sphereModel.Draw();
 
         //CUBE
@@ -399,7 +454,7 @@ int main()
         cubeNormalMatrix = glm::mat3(1.0f);
         cubeModelMatrix = glm::translate(cubeModelMatrix, glm::vec3(0.0f, 0.0f, 0.0f));
         cubeModelMatrix = glm::rotate(cubeModelMatrix, glm::radians(orientationY), glm::vec3(0.0f, 1.0f, 0.0f));
-        cubeModelMatrix = glm::scale(cubeModelMatrix, glm::vec3(0.8f, 0.8f, 0.8f));	// It's a bit too big for our scene, so scale it down
+        cubeModelMatrix = glm::scale(cubeModelMatrix, glm::vec3(0.8f, 0.8f, 0.8f));
         cubeNormalMatrix = glm::inverseTranspose(glm::mat3(view*cubeModelMatrix));
         glUniformMatrix4fv(glGetUniformLocation(basic_shader.Program, "modelMatrix"), 1, GL_FALSE, glm::value_ptr(cubeModelMatrix));
         glUniformMatrix3fv(glGetUniformLocation(basic_shader.Program, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(cubeNormalMatrix));
@@ -414,17 +469,17 @@ int main()
         bunnyNormalMatrix = glm::mat3(1.0f);
         bunnyModelMatrix = glm::translate(bunnyModelMatrix, glm::vec3(3.0f, 0.0f, 0.0f));
         bunnyModelMatrix = glm::rotate(bunnyModelMatrix, glm::radians(orientationY), glm::vec3(0.0f, 1.0f, 0.0f));
-        bunnyModelMatrix = glm::scale(bunnyModelMatrix, glm::vec3(0.3f, 0.3f, 0.3f));	// It's a bit too big for our scene, so scale it down
+        bunnyModelMatrix = glm::scale(bunnyModelMatrix, glm::vec3(0.3f, 0.3f, 0.3f));
         bunnyNormalMatrix = glm::inverseTranspose(glm::mat3(view*bunnyModelMatrix));
         glUniformMatrix4fv(glGetUniformLocation(basic_shader.Program, "modelMatrix"), 1, GL_FALSE, glm::value_ptr(bunnyModelMatrix));
         glUniformMatrix3fv(glGetUniformLocation(basic_shader.Program, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(bunnyNormalMatrix));
 
-        // Swapping back and front buffers
+        // we render the bunny
         bunnyModel.Draw();
 
         // Faccio lo swap tra back e front buffer
         // Bind the default framebuffer
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		texture_shader.Use();
         GLint frequencyLocation = glGetUniformLocation(texture_shader.Program, "frequency");
