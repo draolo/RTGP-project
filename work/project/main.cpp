@@ -77,6 +77,7 @@ positive Z axis points "outside" the screen
 #include <glm/gtc/type_ptr.hpp>
 
 #define MAX_HIT 16
+#define NUMBER_OF_FBO 2
 
 // dimensions of application's window
 GLuint screenWidth = 800, screenHeight = 600;
@@ -224,20 +225,21 @@ int main()
 
     // we create the Shader Program used for the plane
 
-    Shader basic_shader("09_illumination_models.vert", "10_illumination_models.frag");
+    Shader basic_shader("shaders/09_illumination_models.vert", "shaders/10_illumination_models.frag");
 
     // we create the Shader Program used for objects (which presents different subroutines we can switch)
-    Shader texture_shader = Shader("framebuffer.vert", "framebuffer.frag");
+    Shader horizontal_blur_shader = Shader("shaders/framebuffer.vert", "shaders/hblur.frag");
+    Shader vertical_blur_shader = Shader("shaders/framebuffer.vert", "shaders/vblur.frag");
     // we parse the Shader Program to search for the number and names of the subroutines. 
     // the names are placed in the shaders vector
     SetupShader(basic_shader.Program);
     // we print on console the name of the first subroutine used
     PrintCurrentShader(current_subroutine);
-    //SetupShader(texture_shader.Program);
+    //SetupShader(horizontal_blur_shader.Program);
     // we print on console the name of the first subroutine used
 
 
-    glUniform1i(glGetUniformLocation(texture_shader.Program, "screenTexture"), 0);
+    glUniform1i(glGetUniformLocation(horizontal_blur_shader.Program, "screenTexture"), 0);
 
     glEnable(GL_DEPTH_TEST);
 
@@ -261,39 +263,37 @@ int main()
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
 
-    unsigned int FBO;
-	glGenFramebuffers(1, &FBO);
-	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+    unsigned int FBO[NUMBER_OF_FBO]; 
+	glGenFramebuffers(NUMBER_OF_FBO, FBO);
 
-	// Create Framebuffer Texture
-	unsigned int framebufferTexture;
-	glGenTextures(1, &framebufferTexture);
-	glBindTexture(GL_TEXTURE_2D, framebufferTexture);
+    // Create Framebuffer Texture
+	unsigned int framebufferTexture[NUMBER_OF_FBO];
+	glGenTextures(NUMBER_OF_FBO, framebufferTexture);
+
+    // Create Render Buffer Object
+	unsigned int RBO[NUMBER_OF_FBO];
+	glGenRenderbuffers(NUMBER_OF_FBO, RBO);
+
+    for(int i=0;i<NUMBER_OF_FBO;i++){
+	glBindFramebuffer(GL_FRAMEBUFFER, FBO[i]);
+	glBindTexture(GL_TEXTURE_2D, framebufferTexture[i]);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // Prevents edge bleeding
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); // Prevents edge bleeding
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, framebufferTexture, 0);
-
-	// Create Render Buffer Object
-	unsigned int RBO;
-	glGenRenderbuffers(1, &RBO);
-	glBindRenderbuffer(GL_RENDERBUFFER, RBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, framebufferTexture[i], 0);
+	glBindRenderbuffer(GL_RENDERBUFFER, RBO[i]);
 	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
-
-    // Bind the custom framebuffer
-	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
-
-
-    
-    // Error checking framebuffer
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO[i]);
+   
+        // Error checking framebuffer
 	auto fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
-		std::cout << "Framebuffer error: " << fboStatus << std::endl;
-
-
+		std::cout << "Framebuffer "<<i<<" error: " << fboStatus << std::endl;
+    }
+    // Bind the custom framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, FBO[0]);
 
 // we load the model(s) (code of Model class is in include/utils/model_v1.h)
      // we load the model(s) (code of Model class is in include/utils/model_v1.h)
@@ -326,7 +326,7 @@ int main()
     while(!glfwWindowShouldClose(window))
     {
        // Bind the custom framebuffer
-		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+		glBindFramebuffer(GL_FRAMEBUFFER, FBO[0]);
 
         glClearColor(0.26f, 0.46f, 0.98f, 1.0f);
 
@@ -476,19 +476,19 @@ int main()
 
         // we render the bunny
         bunnyModel.Draw();
-
+        {
         // Faccio lo swap tra back e front buffer
-        // Bind the default framebuffer
-    	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        // Bind the intermediate framebuffer
+    	glBindFramebuffer(GL_FRAMEBUFFER, FBO[1]);
 
-		texture_shader.Use();
-        GLint frequencyLocation = glGetUniformLocation(texture_shader.Program, "frequency");
-        GLint hitPointNumberLocation = glGetUniformLocation(texture_shader.Program, "contactPointNumber");
-        GLint hitPointLocation = glGetUniformLocation(texture_shader.Program, "normalizedContactPoints");
-        GLint powersLocation = glGetUniformLocation(texture_shader.Program, "powers");
+		horizontal_blur_shader.Use();
+        GLint frequencyLocation = glGetUniformLocation(horizontal_blur_shader.Program, "frequency");
+        GLint hitPointNumberLocation = glGetUniformLocation(horizontal_blur_shader.Program, "contactPointNumber");
+        GLint hitPointLocation = glGetUniformLocation(horizontal_blur_shader.Program, "normalizedContactPoints");
+        GLint powersLocation = glGetUniformLocation(horizontal_blur_shader.Program, "powers");
         
 
-        GLint harmonicsLocation = glGetUniformLocation(texture_shader.Program, "harmonics");
+        GLint harmonicsLocation = glGetUniformLocation(horizontal_blur_shader.Program, "harmonics");
 
         // we assign the value to the uniform variable
         glUniform1i(hitPointNumberLocation, MAX_HIT);
@@ -501,10 +501,36 @@ int main()
 		// Draw the framebuffer rectangle
 		glBindVertexArray(rectVAO);
 		glDisable(GL_DEPTH_TEST); // prevents framebuffer rectangle from being discarded
-		glBindTexture(GL_TEXTURE_2D, framebufferTexture);
+		glBindTexture(GL_TEXTURE_2D, framebufferTexture[0]);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+        {
+    	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        
+        vertical_blur_shader.Use();
+        GLint frequencyLocation = glGetUniformLocation(vertical_blur_shader.Program, "frequency");
+        GLint hitPointNumberLocation = glGetUniformLocation(vertical_blur_shader.Program, "contactPointNumber");
+        GLint hitPointLocation = glGetUniformLocation(vertical_blur_shader.Program, "normalizedContactPoints");
+        GLint powersLocation = glGetUniformLocation(vertical_blur_shader.Program, "powers");
+        
+
+        GLint harmonicsLocation = glGetUniformLocation(vertical_blur_shader.Program, "harmonics");
+
+        // we assign the value to the uniform variable
+        glUniform1i(hitPointNumberLocation, MAX_HIT);
+        glUniform1f(frequencyLocation, frequency);
+        glUniform1fv(powersLocation,MAX_HIT, powers);
+        glUniform2fv(hitPointLocation,MAX_HIT, hitPoints);
+        glUniform1f(harmonicsLocation, harmonics);
+
+
+		// Draw the framebuffer rectangle
+		glBindVertexArray(rectVAO);
+		glDisable(GL_DEPTH_TEST); // prevents framebuffer rectangle from being discarded
+		glBindTexture(GL_TEXTURE_2D, framebufferTexture[1]);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 
-
+        }
 		// Swap the back buffer with the front buffer
 		glfwSwapBuffers(window);
 
@@ -513,7 +539,7 @@ int main()
     // when I exit from the graphics loop, it is because the application is closing
     // we delete the Shader Programs
     basic_shader.Delete();
-    texture_shader.Delete();
+    horizontal_blur_shader.Delete();
     // we close and delete the created context
     glfwTerminate();
     return 0;
