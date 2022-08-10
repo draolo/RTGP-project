@@ -18,7 +18,7 @@ Universita' degli Studi di Milano
 #include <bullet/btBulletDynamicsCommon.h>
 
 //enum to identify the 2 considered Collision Shapes
-enum shapes{ BOX, SPHERE};
+enum shapes{ BOX, SPHERE, SHAPE};
 
 ///////////////////  Physics class ///////////////////////
 class Physics
@@ -62,7 +62,7 @@ public:
     //////////////////////////////////////////
     // Method for the creation of a rigid body, based on a Box or Sphere Collision Shape
     // The Collision Shape is a reference solid that approximates the shape of the actual object of the scene. The Physical simulation is applied to these solids, and the rotations and positions of these solids are used on the real models.
-    btRigidBody* createRigidBody(int type, glm::vec3 pos, glm::vec3 size, glm::vec3 rot, float m, float friction , float restitution)
+    btRigidBody* createRigidBody(int type, glm::vec3 pos, glm::vec3 size, glm::vec3 rot, float m, float friction , float restitution, Model* model=nullptr)
     {
 
         btCollisionShape* cShape = NULL;
@@ -74,17 +74,42 @@ public:
         btQuaternion rotation;
         rotation.setEuler(rot.x,rot.y,rot.z);
 
-        // Box Collision shape
-        if (type == BOX)
+        switch (type)
         {
+        case BOX:
+            {
             // we convert the glm vector to a Bullet vector
             btVector3 dim = btVector3(size.x,size.y,size.z);
             // BoxShape
             cShape = new btBoxShape(dim);
-        }
-        // Sphere Collision Shape (in this case we consider only the first component)
-        else if (type == SPHERE)
+            break;
+            }
+        case SPHERE:{
+            // we convert the glm vector to a Bullet vector
             cShape = new btSphereShape(size.x);
+            break;}
+        case SHAPE:{
+             btTriangleIndexVertexArray *meshes=new btTriangleIndexVertexArray();
+            btTriangleMesh mesh();
+            for(int i=0;i<model->meshes.size();i++){
+                btIndexedMesh meshInfo;
+                meshInfo.m_numTriangles=model->meshes[i].indices.size()/3;
+                meshInfo.m_triangleIndexBase= (unsigned char*)&model->meshes[i].indices[0];
+                meshInfo.m_triangleIndexStride = 3*sizeof(GLuint);
+                meshInfo.m_numVertices= model->meshes[i].vertices.size();
+                meshInfo.m_vertexBase = (unsigned char*)&model->meshes[i].vertices[0];
+                meshInfo.m_vertexStride= sizeof(Vertex);
+                meshes->addIndexedMesh(meshInfo);          
+            }
+
+            btBvhTriangleMeshShape *unscaledRb= new btBvhTriangleMeshShape(meshes,true);
+            btVector3 dim = btVector3(size.x,size.y,size.z);
+            cShape= new btScaledBvhTriangleMeshShape(unscaledRb,dim);
+            break;
+        }
+        default:
+            break;
+        }
 
         // we add this Collision Shape to the vector
         this->collisionShapes.push_back(cShape);

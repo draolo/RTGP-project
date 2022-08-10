@@ -384,7 +384,7 @@ int main()
     plane.addRigidbody(bulletSimulation,BOX,0,0.3,0.3);
     cube.addRigidbody(bulletSimulation,BOX,2,0.3,0.3);
     sphere.addRigidbody(bulletSimulation,SPHERE,2,0.3,0.3);
-    bunny.addRigidbody(bulletSimulation,SPHERE,2,0.3,0.3);
+    bunny.addRigidbody(bulletSimulation,SHAPE,2,0.3,0.3);
 
     //scene.push_back(plane);
     scene.push_back(sphere);

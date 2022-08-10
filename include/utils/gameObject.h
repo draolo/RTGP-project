@@ -84,7 +84,7 @@ public:
     }
 
     void addRigidbody(Physics bulletSimulation, int type,float mass, float friction, float restitution){
-        this->rb = bulletSimulation.createRigidBody(type,position,scale,rotation,mass,friction,restitution);
+        this->rb = bulletSimulation.createRigidBody(type,position,scale,rotation,mass,friction,restitution, model);
 
     }
 
