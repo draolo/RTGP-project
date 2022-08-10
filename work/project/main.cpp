@@ -70,6 +70,8 @@ positive Z axis points "outside" the screen
 #include <utils/shader_v1.h>
 #include <utils/model_v1.h>
 #include <utils/camera.h>
+#include <utils/physics_v1.h>
+#include <utils/gameObject.h>
 
 // we load the GLM classes used in the application
 #include <glm/glm.hpp>
@@ -86,6 +88,9 @@ positive Z axis points "outside" the screen
 
 // dimensions of application's window
 GLuint screenWidth = 800, screenHeight = 600;
+
+glm::mat4 view, projection;
+
 // we create a camera. We pass the initial position as a parameter to the constructor. The last boolean tells that we want a camera "anchored" to the ground
 Camera camera(glm::vec3(0.0f, 0.0f, 7.0f), GL_TRUE);
 
@@ -109,7 +114,8 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 // if one of the WASD keys is pressed, we call the corresponding method of the Camera class
 void apply_camera_movements();
 
-// 
+void shoot();
+
 void update_hits(float deltaTime);
 
 bool add_hit(float normx, float normy);
@@ -136,6 +142,9 @@ GLfloat lastFrame = 0.0f;
 
 // we need to store the previous mouse position to calculate the offset with the current frame
 GLfloat lastX, lastY;
+// we will use these value to "pass" the cursor position to the keyboard callback, in order to determine the bullet trajectory
+double cursorX,cursorY;
+
 
 // when rendering the first frame, we do not have a "previous state" for the mouse, so we need to manage this situation
 bool firstMouse = true;
@@ -158,13 +167,6 @@ GLfloat ambientColor[] = {0.1f,0.1f,0.1f};
 GLfloat Kd = 0.5f;
 GLfloat Ks = 0.4f;
 GLfloat Ka = 0.1f;
-// shininess coefficient for Phong and Blinn-Phong shaders
-GLfloat shininess = 25.0f;
-
-// roughness index for GGX shader
-GLfloat alpha = 0.2f;
-// Fresnel reflectance at 0 degree (Schlik's approximation)
-GLfloat F0 = 0.9f;
 
 GLfloat planeMaterial[] = {0.0f,0.5f,0.0f};
 
@@ -179,6 +181,16 @@ GLfloat speed = 5.0;
 GLfloat planeColor[] = {0.0,0.5,0.0};
 GLfloat objectColor[] = {0.5,0.0,0.0};
 
+GLfloat bullet_color[] = {1.0f,1.0f,0.0f};
+// dimension of the bullets (global because we need it also in the keyboard callback)
+glm::vec3 bullet_size = glm::vec3(0.2f, 0.2f, 0.2f);
+Model *bulletModel;
+
+// we set the maximum delta time for the update of the physical simulation
+GLfloat maxSecPerFrame = 1.0f / 60.0f;
+
+// instance of the physics class
+Physics bulletSimulation;
 
 float rectangleVertices[] =
 {
@@ -191,6 +203,8 @@ float rectangleVertices[] =
 	 1.0f, -1.0f,  1.0f, 0.0f,
 	-1.0f,  1.0f,  0.0f, 1.0f
 };
+
+vector<GameObject> scene;
 
 /////////////////// MAIN function ///////////////////////
 int main()
@@ -334,12 +348,13 @@ int main()
     Model cubeModel("../../models/cube.obj");
     Model sphereModel("../../models/sphere.obj");
     Model bunnyModel("../../models/bunny_lp.obj");
-    Model planeModel("../../models/plane.obj");
+
+    bulletModel=&sphereModel;
 
     // Projection matrix: FOV angle, aspect ratio, near and far planes
-    glm::mat4 projection = glm::perspective(45.0f, (float)screenWidth/(float)screenHeight, 0.1f, 10000.0f);
+    projection = glm::perspective(45.0f, (float)screenWidth/(float)screenHeight, 0.1f, 10000.0f);
     // View matrix (=camera): position, view direction, camera "up" vector
-    glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 7.0f), glm::vec3(0.0f, 0.0f, -7.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    view = glm::lookAt(glm::vec3(0.0f, 0.0f, 7.0f), glm::vec3(0.0f, 0.0f, -7.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
     // Model and Normal transformation matrices for the objects in the scene: we set to identity
     glm::mat4 sphereModelMatrix = glm::mat4(1.0f);
@@ -351,10 +366,38 @@ int main()
     glm::mat4 planeModelMatrix = glm::mat4(1.0f);
     glm::mat3 planeNormalMatrix = glm::mat3(1.0f);
     
+    glm::vec3 plane_pos = glm::vec3(0.0f, -1.0f, 0.0f);
+    glm::vec3 plane_size = glm::vec3(200.0f, 0.1f, 200.0f);
+    glm::vec3 plane_rot = glm::vec3(0.0f, 0.0f, 0.0f);
+
+
+    GameObject plane(plane_pos,plane_size, plane_rot, &cubeModel);
+    GameObject sphere(glm::vec3(-3.0f, 0.0f, 0.0f),glm::vec3(0.8,0.8,0.8),glm::vec3(0.0,.0,0.0),&sphereModel);
+    GameObject cube(glm::vec3(0.0f, 0.0f, 0.0f),glm::vec3(0.8,0.8,0.8),glm::vec3(0.0,.0,0.0),&cubeModel);
+    GameObject bunny(glm::vec3(3.0f, 0.0f, 0.0f),glm::vec3(0.3,0.3,0.3),glm::vec3(0.0,.0,0.0),&bunnyModel);
+
+    sphere.setColor3(objectColor);
+    cube.setColor3(objectColor);
+    bunny.setColor3(objectColor);   
+    plane.setColor3(planeColor); 
+
+    plane.addRigidbody(bulletSimulation,BOX,0,0.3,0.3);
+    cube.addRigidbody(bulletSimulation,BOX,2,0.3,0.3);
+    sphere.addRigidbody(bulletSimulation,SPHERE,2,0.3,0.3);
+    bunny.addRigidbody(bulletSimulation,SPHERE,2,0.3,0.3);
+
+    //scene.push_back(plane);
+    scene.push_back(sphere);
+    scene.push_back(cube);
+    scene.push_back(bunny);
+
     //set up the hit manager
     for(int i=0;i<MAX_HIT;i++){
         powers[i]=0.0f;
     }
+
+    // we set the maximum delta time for the update of the physical simulation
+    GLfloat maxSecPerFrame = 1.0f / 60.0f;
 
     // Rendering loop: this code is executed at each frame
     while(!glfwWindowShouldClose(window))
@@ -363,7 +406,7 @@ int main()
 		glBindFramebuffer(GL_FRAMEBUFFER, FBO[0]);
 
         glClearColor(0.26f, 0.46f, 0.98f, 1.0f);
-
+        
 		// Clean the back buffer and depth buffer
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		// Enable depth testing since it's disabled when drawing the framebuffer rectangle
@@ -371,7 +414,7 @@ int main()
         basic_shader.Use();
         // we determine the time passed from the beginning
         // and we calculate the time difference between current frame rendering and the previous one
-       GLfloat currentFrame = glfwGetTime();
+        GLfloat currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
@@ -399,6 +442,10 @@ int main()
 
         update_hits(deltaTime);
 
+        // we update the physics simulation. We must pass the deltatime to be used for the update of the physical state of the scene. The default value for Bullet is 60 Hz, for lesser deltatime the library interpolates and does not calculate the simulation. In this example, we use deltatime from the last rendering: if it is < 1\60 sec, than we use it, otherwise we use the deltatime we have set above
+        // we also set the max number of substeps to consider for the simulation (=10)
+        bulletSimulation.dynamicsWorld->stepSimulation((deltaTime < maxSecPerFrame ? deltaTime : maxSecPerFrame),10);
+
         /////////////////// PLANE ////////////////////////////////////////////////
         // We render a plane under the objects. We apply the fullcolor shader to the plane, and we do not apply the rotation applied to the other objects.
         basic_shader.Use();
@@ -422,18 +469,9 @@ int main()
         glUniform3fv(matDiffuseLocation, 1, planeMaterial);
         glUniform1f(kdLocation, Kd);
 
-        // we create the transformation matrix
-        // we reset to identity at each frame
-        planeModelMatrix = glm::mat4(1.0f);
-        planeNormalMatrix = glm::mat3(1.0f);
-        planeModelMatrix = glm::translate(planeModelMatrix, glm::vec3(0.0f, -1.0f, 0.0f));
-        planeModelMatrix = glm::scale(planeModelMatrix, glm::vec3(10.0f, 1.0f, 10.0f));
-        planeNormalMatrix = glm::inverseTranspose(glm::mat3(view*planeModelMatrix));
-        glUniformMatrix4fv(glGetUniformLocation(basic_shader.Program, "modelMatrix"), 1, GL_FALSE, glm::value_ptr(planeModelMatrix));
-        glUniformMatrix3fv(glGetUniformLocation(basic_shader.Program, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(planeNormalMatrix));
 
         // we render the plane
-       // planeModel.Draw();
+        plane.Draw(view,basic_shader);
 
         /////////////////// OBJECTS ////////////////////////////////////////////////
         // We use the same Shader Program for the objects, but in this case we will do shaders swapping
@@ -447,9 +485,6 @@ int main()
         GLint matSpecularLocation = glGetUniformLocation(basic_shader.Program, "specularColor");
         GLint kaLocation = glGetUniformLocation(basic_shader.Program, "Ka");
         GLint ksLocation = glGetUniformLocation(basic_shader.Program, "Ks");
-        GLint shineLocation = glGetUniformLocation(basic_shader.Program, "shininess");
-        GLint alphaLocation = glGetUniformLocation(basic_shader.Program, "alpha");
-        GLint f0Location = glGetUniformLocation(basic_shader.Program, "F0");
 
         // we assign the value to the uniform variables
         glUniform3fv(matDiffuseLocation, 1, diffuseColor);
@@ -457,65 +492,11 @@ int main()
         glUniform3fv(matSpecularLocation, 1, specularColor);
         glUniform1f(kaLocation, Ka);
         glUniform1f(ksLocation, Ks);
-        glUniform1f(shineLocation, shininess);
-        glUniform1f(alphaLocation, alpha);
-        glUniform1f(f0Location, F0);
 
-        // SPHERE
-        /*
-          we create the transformation matrix
-
-          N.B.) the last defined is the first applied
-
-          We need also the matrix for normals transformation, which is the inverse of the transpose of the 3x3 submatrix (upper left) of the modelview. We do not consider the 4th column because we do not need translations for normals.
-          An explanation (where XT means the transpose of X, etc):
-            "Two column vectors X and Y are perpendicular if and only if XT.Y=0. If We're going to transform X by a matrix M, we need to transform Y by some matrix N so that (M.X)T.(N.Y)=0. Using the identity (A.B)T=BT.AT, this becomes (XT.MT).(N.Y)=0 => XT.(MT.N).Y=0. If MT.N is the identity matrix then this reduces to XT.Y=0. And MT.N is the identity matrix if and only if N=(MT)-1, i.e. N is the inverse of the transpose of M.
-
-        */
-        // we reset to identity at each frame
-        sphereModelMatrix = glm::mat4(1.0f);
-        sphereNormalMatrix = glm::mat3(1.0f);
-        sphereModelMatrix = glm::translate(sphereModelMatrix, glm::vec3(-3.0f, 0.0f, 0.0f));
-        sphereModelMatrix = glm::rotate(sphereModelMatrix, glm::radians(orientationY), glm::vec3(0.0f, 1.0f, 0.0f));
-        sphereModelMatrix = glm::scale(sphereModelMatrix, glm::vec3(0.8f, 0.8f, 0.8f));
-        // if we cast a mat4 to a mat3, we are automatically considering the upper left 3x3 submatrix
-        sphereNormalMatrix = glm::inverseTranspose(glm::mat3(view*sphereModelMatrix));
-        glUniformMatrix4fv(glGetUniformLocation(basic_shader.Program, "modelMatrix"), 1, GL_FALSE, glm::value_ptr(sphereModelMatrix));
-        glUniformMatrix3fv(glGetUniformLocation(basic_shader.Program, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(sphereNormalMatrix));
-
-        // we render the sphere
-        sphereModel.Draw();
-
-        //CUBE
-        // we create the transformation matrix and the normals transformation matrix
-        // we reset to identity at each frame
-        cubeModelMatrix = glm::mat4(1.0f);
-        cubeNormalMatrix = glm::mat3(1.0f);
-        cubeModelMatrix = glm::translate(cubeModelMatrix, glm::vec3(0.0f, 0.0f, 0.0f));
-        cubeModelMatrix = glm::rotate(cubeModelMatrix, glm::radians(orientationY), glm::vec3(0.0f, 1.0f, 0.0f));
-        cubeModelMatrix = glm::scale(cubeModelMatrix, glm::vec3(0.8f, 0.8f, 0.8f));
-        cubeNormalMatrix = glm::inverseTranspose(glm::mat3(view*cubeModelMatrix));
-        glUniformMatrix4fv(glGetUniformLocation(basic_shader.Program, "modelMatrix"), 1, GL_FALSE, glm::value_ptr(cubeModelMatrix));
-        glUniformMatrix3fv(glGetUniformLocation(basic_shader.Program, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(cubeNormalMatrix));
-
-        // we render the cube
-        cubeModel.Draw();
-
-        //BUNNY
-        // we create the transformation matrix and the normals transformation matrix
-        // we reset to identity at each frame
-        bunnyModelMatrix = glm::mat4(1.0f);
-        bunnyNormalMatrix = glm::mat3(1.0f);
-        bunnyModelMatrix = glm::translate(bunnyModelMatrix, glm::vec3(3.0f, 0.0f, 0.0f));
-        bunnyModelMatrix = glm::rotate(bunnyModelMatrix, glm::radians(orientationY), glm::vec3(0.0f, 1.0f, 0.0f));
-        bunnyModelMatrix = glm::scale(bunnyModelMatrix, glm::vec3(0.3f, 0.3f, 0.3f));
-        bunnyNormalMatrix = glm::inverseTranspose(glm::mat3(view*bunnyModelMatrix));
-        glUniformMatrix4fv(glGetUniformLocation(basic_shader.Program, "modelMatrix"), 1, GL_FALSE, glm::value_ptr(bunnyModelMatrix));
-        glUniformMatrix3fv(glGetUniformLocation(basic_shader.Program, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(bunnyNormalMatrix));
-
-        // we render the bunny
-        bunnyModel.Draw();
-
+        for (auto &gameObject : scene) // access by reference to avoid copying
+        {  
+            gameObject.Draw(view,basic_shader);
+        }
         
         /////////////////// SKYBOX ////////////////////////////////////////////////
         // we use the cube to attach the 6 textures of the environment map.
@@ -685,7 +666,10 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     // if L is pressed, we activate/deactivate wireframe rendering of models
     if(key == GLFW_KEY_L && action == GLFW_PRESS)
         wireframe=!wireframe;
-
+    if(key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+    {
+        shoot();
+    }
     // pressing a key number, we change the shader applied to the models
     // if the key is between 1 and 9, we proceed and check if the pressed key corresponds to
     // a valid subroutine
@@ -737,23 +721,28 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
       // we move the camera view following the mouse cursor
       // we calculate the offset of the mouse cursor from the position in the last frame
       // when rendering the first frame, we do not have a "previous state" for the mouse, so we set the previous state equal to the initial values (thus, the offset will be = 0)
-      if(firstMouse)
-      {
-          lastX = xpos;
-          lastY = ypos;
-          firstMouse = false;
-      }
 
-      // offset of mouse cursor position
-      GLfloat xoffset = xpos - lastX;
-      GLfloat yoffset = lastY - ypos;
+    if(firstMouse)
+    {
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
 
-      // the new position will be the previous one for the next frame
-      lastX = xpos;
-      lastY = ypos;
+    // we save the current cursor position in 2 global variables, in order to use the values in the keyboard callback function
+    cursorX = xpos;
+    cursorY = ypos;
 
-      // we pass the offset to the Camera class instance in order to update the rendering
-      camera.ProcessMouseMovement(xoffset, yoffset);
+    // offset of mouse cursor position
+    GLfloat xoffset = xpos - lastX;
+    GLfloat yoffset = lastY - ypos;
+
+    // the new position will be the previous one for the next frame
+    lastX = xpos;
+    lastY = ypos;
+
+    // we pass the offset to the Camera class instance in order to update the rendering
+    camera.ProcessMouseMovement(xoffset, yoffset);
 
 }
 
@@ -850,4 +839,45 @@ GLint LoadTextureCube(string path,const string format= std::string("jpg"))
 
     return textureImage;
 
+}
+
+void shoot(){
+    
+    ///////
+    /// BULLET MANAGEMENT (SPACE KEY)
+    // if space is pressed, we "shoot" a bullet in the scene
+    // the initial trajectory of the bullet is given by a vector from the position of the camera to the mouse cursor position, which must be converted from Viewport Coordinates back to World Coordinate
+
+    btVector3 impulse;
+    // we need a initial rotation, even if useless for a sphere
+    glm::vec3 rot = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec4 shoot;
+    // initial velocity of the bullet
+    GLfloat shootInitialSpeed = 15.0f;
+    // matrix for the inverse matrix of view and projection
+    glm::mat4 unproject;
+    // we create a Rigid Body with mass = 1
+    GameObject bullet(camera.Position,bullet_size,rot,bulletModel);
+    bullet.setColor3(bullet_color);
+    bullet.addRigidbody(bulletSimulation,SPHERE,.5f,0.3f,0.3f);
+    scene.push_back(bullet); 
+    // we must retro-project the coordinates of the mouse pointer, in order to have a point in world coordinate to be used to determine a vector from the camera (= direction and orientation of the bullet)
+    // we convert the cursor position (taken from the mouse callback) from Viewport Coordinates to Normalized Device Coordinate (= [-1,1] in both coordinates)
+    shoot.x = (cursorX/screenWidth) * 2.0f - 1.0f;
+    shoot.y = -(cursorY/screenHeight) * 2.0f + 1.0f; // Viewport Y coordinates are from top-left corner to the bottom
+    // we need a 3D point, so we set a minimum value to the depth with respect to camera position
+    shoot.z = 1.0f;
+    // w = 1.0 because we are using homogeneous coordinates
+    shoot.w = 1.0f;
+
+    // we determine the inverse matrix for the projection and view transformations
+    unproject = glm::inverse(projection * view);
+
+    // we convert the position of the cursor from NDC to world coordinates, and we multiply the vector by the initial speed
+    shoot = glm::normalize(unproject * shoot) * shootInitialSpeed;
+
+    // we apply the impulse and shoot the bullet in the scene
+    // N.B.) the graphical aspect of the bullet is treated in the rendering loop
+    impulse = btVector3(shoot.x, shoot.y, shoot.z);
+    bullet.rb->applyCentralImpulse(impulse);
 }
