@@ -115,6 +115,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 void apply_camera_movements();
 
 void shoot();
+void shootToPlayer(glm::vec3 from);
 
 void checkForCollision();
 
@@ -672,7 +673,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         wireframe=!wireframe;
     if(key == GLFW_KEY_SPACE && action == GLFW_PRESS)
     {
-        shoot();
+        shootToPlayer(glm::vec3(2.,2.,2.));
     }
     // pressing a key number, we change the shader applied to the models
     // if the key is between 1 and 9, we proceed and check if the pressed key corresponds to
@@ -882,6 +883,50 @@ void shoot(){
 
     // we convert the position of the cursor from NDC to world coordinates, and we multiply the vector by the initial speed
     shoot = glm::normalize(unproject * shoot) * shootInitialSpeed;
+
+    // we apply the impulse and shoot the bullet in the scene
+    // N.B.) the graphical aspect of the bullet is treated in the rendering loop
+    impulse = btVector3(shoot.x, shoot.y, shoot.z);
+    bullet->rb->applyCentralImpulse(impulse);
+}
+
+void shootToPlayer(glm::vec3 from){
+    
+    ///////
+    /// BULLET MANAGEMENT (SPACE KEY)
+    // if space is pressed, we "shoot" a bullet in the scene
+    // the initial trajectory of the bullet is given by a vector from the position of the camera to the mouse cursor position, which must be converted from Viewport Coordinates back to World Coordinate
+
+    btVector3 impulse;
+    // we need a initial rotation, even if useless for a sphere
+    glm::vec3 rot = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec4 shoot;
+    // initial velocity of the bullet
+    GLfloat shootInitialSpeed = 15.0f;
+    // matrix for the inverse matrix of view and projection
+    glm::mat4 unproject;
+    // we create a Rigid Body with mass = 1
+    GameObject *bullet=new GameObject(from,bullet_size,rot,bulletModel);
+    bullet->setColor3(bullet_color);
+    bullet->addRigidbody(bulletSimulation,SPHERE,.5f,0.3f,0.3f);
+    //bullet->rb->setCollisionFlags(btCollisionObject::CF_NO_CONTACT_RESPONSE);
+    bullet->rb->setGravity(btVector3(0.,0.,0.));
+    bullet->rb->setUserIndex(1);
+    scene.push_back(bullet); 
+
+    shoot=glm::vec4(camera.Position-from,1);
+    // we must retro-project the coordinates of the mouse pointer, in order to have a point in world coordinate to be used to determine a vector from the camera (= direction and orientation of the bullet)
+    // we convert the cursor position (taken from the mouse callback) from Viewport Coordinates to Normalized Device Coordinate (= [-1,1] in both coordinates)
+    // we need a 3D point, so we set a minimum value to the depth with respect to camera position
+    //shoot.z = 1.0f;
+    // w = 1.0 because we are using homogeneous coordinates
+    shoot.w = 1.0f;
+
+    // we determine the inverse matrix for the projection and view transformations
+    //unproject = glm::inverse(projection * view);
+
+    // we convert the position of the cursor from NDC to world coordinates, and we multiply the vector by the initial speed
+    shoot = glm::normalize(shoot) * shootInitialSpeed;
 
     // we apply the impulse and shoot the bullet in the scene
     // N.B.) the graphical aspect of the bullet is treated in the rendering loop
