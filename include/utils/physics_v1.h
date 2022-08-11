@@ -90,7 +90,7 @@ public:
             break;}
         case SHAPE:{
              btTriangleIndexVertexArray *meshes=new btTriangleIndexVertexArray();
-            btTriangleMesh mesh();
+            btTriangleMesh mesh;
             for(int i=0;i<model->meshes.size();i++){
                 btIndexedMesh meshInfo;
                 meshInfo.m_numTriangles=model->meshes[i].indices.size()/3;
@@ -157,6 +157,20 @@ public:
         // the function returns a pointer to the created rigid body
         // in a standard simulation (e.g., only objects falling), it is not needed to have a reference to a single rigid body, but in some cases (e.g., the application of an impulse), it is needed.
         return body;
+    }
+
+    void deleteCollisionObject(btCollisionObject* obj){
+        btRigidBody* body = btRigidBody::upcast(obj);
+        cout<<"good"<<endl;
+
+        this->collisionShapes.remove(body->getCollisionShape());
+        if (body!=nullptr && body->getMotionState()){
+            this->dynamicsWorld->removeRigidBody(body);
+            //delete (body->getMotionState());
+        }
+        this->dynamicsWorld->removeCollisionObject( obj );
+        delete body;
+        //delete obj;
     }
 
     //////////////////////////////////////////

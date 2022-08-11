@@ -43,7 +43,7 @@ positive Z axis points "outside" the screen
 
 // Std. Includes
 #include <string>
-
+#include <set>
 #include <algorithm>
 
 // Loader estensions OpenGL
@@ -115,6 +115,8 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 void apply_camera_movements();
 
 void shoot();
+
+void checkForCollision();
 
 void update_hits(float deltaTime);
 
@@ -204,7 +206,7 @@ float rectangleVertices[] =
 	-1.0f,  1.0f,  0.0f, 1.0f
 };
 
-vector<GameObject> scene;
+vector<GameObject*> scene;
 
 /////////////////// MAIN function ///////////////////////
 int main()
@@ -387,9 +389,9 @@ int main()
     bunny.addRigidbody(bulletSimulation,SHAPE,2,0.3,0.3);
 
     //scene.push_back(plane);
-    scene.push_back(sphere);
-    scene.push_back(cube);
-    scene.push_back(bunny);
+    scene.push_back(&sphere);
+    scene.push_back(&cube);
+    scene.push_back(&bunny);
 
     //set up the hit manager
     for(int i=0;i<MAX_HIT;i++){
@@ -445,6 +447,8 @@ int main()
         // we update the physics simulation. We must pass the deltatime to be used for the update of the physical state of the scene. The default value for Bullet is 60 Hz, for lesser deltatime the library interpolates and does not calculate the simulation. In this example, we use deltatime from the last rendering: if it is < 1\60 sec, than we use it, otherwise we use the deltatime we have set above
         // we also set the max number of substeps to consider for the simulation (=10)
         bulletSimulation.dynamicsWorld->stepSimulation((deltaTime < maxSecPerFrame ? deltaTime : maxSecPerFrame),10);
+        checkForCollision();
+
 
         /////////////////// PLANE ////////////////////////////////////////////////
         // We render a plane under the objects. We apply the fullcolor shader to the plane, and we do not apply the rotation applied to the other objects.
@@ -493,9 +497,9 @@ int main()
         glUniform1f(kaLocation, Ka);
         glUniform1f(ksLocation, Ks);
 
-        for (auto &gameObject : scene) // access by reference to avoid copying
+        for (auto gameObject : scene) // access by reference to avoid copying
         {  
-            gameObject.Draw(view,basic_shader);
+            gameObject->Draw(view,basic_shader);
         }
         
         /////////////////// SKYBOX ////////////////////////////////////////////////
@@ -857,9 +861,12 @@ void shoot(){
     // matrix for the inverse matrix of view and projection
     glm::mat4 unproject;
     // we create a Rigid Body with mass = 1
-    GameObject bullet(camera.Position,bullet_size,rot,bulletModel);
-    bullet.setColor3(bullet_color);
-    bullet.addRigidbody(bulletSimulation,SPHERE,.5f,0.3f,0.3f);
+    GameObject *bullet=new GameObject(camera.Position,bullet_size,rot,bulletModel);
+    bullet->setColor3(bullet_color);
+    bullet->addRigidbody(bulletSimulation,SPHERE,.5f,0.3f,0.3f);
+    //bullet->rb->setCollisionFlags(btCollisionObject::CF_NO_CONTACT_RESPONSE);
+    bullet->rb->setGravity(btVector3(0.,0.,0.));
+    bullet->rb->setUserIndex(1);
     scene.push_back(bullet); 
     // we must retro-project the coordinates of the mouse pointer, in order to have a point in world coordinate to be used to determine a vector from the camera (= direction and orientation of the bullet)
     // we convert the cursor position (taken from the mouse callback) from Viewport Coordinates to Normalized Device Coordinate (= [-1,1] in both coordinates)
@@ -879,5 +886,45 @@ void shoot(){
     // we apply the impulse and shoot the bullet in the scene
     // N.B.) the graphical aspect of the bullet is treated in the rendering loop
     impulse = btVector3(shoot.x, shoot.y, shoot.z);
-    bullet.rb->applyCentralImpulse(impulse);
+    bullet->rb->applyCentralImpulse(impulse);
+}
+
+
+void checkForCollision(){
+    //Go through collisions
+    int numManifolds = bulletSimulation.dispatcher->getNumManifolds();
+    set<btCollisionObject*> toRem;
+    for (int i = 0; i < numManifolds; i++)
+    {
+        btPersistentManifold* contactManifold = bulletSimulation.dispatcher->getManifoldByIndexInternal(i);
+        btCollisionObject* obA = const_cast<btCollisionObject*>(contactManifold->getBody0());
+        btCollisionObject* obB = const_cast<btCollisionObject*>(contactManifold->getBody1());
+
+        GameObject* gameObjA = static_cast<GameObject*>(obA->getUserPointer());
+        GameObject* gameObjB = static_cast<GameObject*>(obB->getUserPointer());
+        if(obA->getUserIndex()==1){
+            toRem.insert(obA);
+            gameObjA->rb=nullptr;
+        }
+        if(obB->getUserIndex()==1){
+            toRem.insert(obB);
+            gameObjB->rb=nullptr;
+            //bulletSimulation.deleteCollisionObject(obB);
+            //delete gameObjB;
+        }
+    
+    }
+
+    for(auto obj:toRem){
+        cout<<"to rem addres "<<obj->getUserPointer()<<endl;
+        cout<<"vector size "<<scene.size()<<endl;
+        cout<<"elements"<<endl;
+        for(int i=0;i<scene.size();i++){
+            cout<<"-"<<scene[i]<<endl;
+        }
+        bulletSimulation.deleteCollisionObject(obj);
+        scene.erase(remove(scene.begin(),scene.end(),(GameObject*)obj->getUserPointer()),scene.end());
+        cout<<"vector size after delete "<<scene.size()<<endl;
+
+    }
 }

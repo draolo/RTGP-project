@@ -85,8 +85,10 @@ public:
 
     void addRigidbody(Physics bulletSimulation, int type,float mass, float friction, float restitution){
         this->rb = bulletSimulation.createRigidBody(type,position,scale,rotation,mass,friction,restitution, model);
-
+        this->rb->setUserPointer(this);
+        this->rb->setUserIndex(0);
     }
+
 
     void setColor3(GLfloat c[]){
         color[0]=c[0];
