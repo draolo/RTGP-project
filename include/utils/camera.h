@@ -17,13 +17,18 @@ Universita' degli Studi di Milano
 // we use GLM to create the view matrix and to manage camera transformations
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <bullet/btBulletDynamicsCommon.h>
+#include <utils/physics_v1.h>
+
+
 
 // possible camera movements
 enum Camera_Movement {
     FORWARD,
     BACKWARD,
     LEFT,
-    RIGHT
+    RIGHT, 
+    NONE
 };
 
 // Default camera settings
@@ -33,14 +38,14 @@ const GLfloat PITCH      =  0.0f; //X
 
 // parameters to manage mouse movement
 const GLfloat SPEED      =  3.0f;
-const GLfloat SENSITIVITY =  0.25f;
+const GLfloat SENSITIVITY =  0.5f;
 
 ///////////////////  CAMERA class ///////////////////////
 class Camera
 {
 public:
     // Camera Attributes
-    glm::vec3 Position;
+    glm::vec3 position;
     glm::vec3 Front;
     glm::vec3 WorldFront;
     glm::vec3 Up; // camera local UP vector
@@ -54,23 +59,47 @@ public:
     // Camera options
     GLfloat MovementSpeed;
     GLfloat MouseSensitivity;
+    btRigidBody *rb;
+    glm::vec3 movement;
 
     //////////////////////////////////////////
     // simplified constructor
     // it can be extended passing different values of speed and mouse sensitivity, etc...
     Camera(glm::vec3 position, GLboolean onGround)
-        :Position(position),onGround(onGround),Yaw(YAW),Pitch(PITCH),MovementSpeed(SPEED),MouseSensitivity(SENSITIVITY)
+        :position(position),onGround(onGround),Yaw(YAW),Pitch(PITCH),MovementSpeed(SPEED),MouseSensitivity(SENSITIVITY)
     {
         this->WorldUp = glm::vec3(0.0f,1.0f,0.0f);
         // initialization of the camera reference system
         this->updateCameraVectors();
+        this->rb=nullptr;
+        this->movement= glm::vec3(0.);
     }
+
+    glm::vec3 Position(){
+        if(rb==nullptr){
+            return position;
+        }
+        btTransform t;
+        rb->getMotionState()->getWorldTransform(t);
+        btVector3 offset= t.getOrigin();
+        return glm::vec3(offset.getX(),offset.getY(),offset.getZ());
+
+    }
+
+    void addRigidbody(Physics bulletSimulation, int type,float mass, float friction, float restitution){
+        this->rb = bulletSimulation.createRigidBody(type,this->position,glm::vec3(1.,1.,1.),glm::vec3(0.,0.,0.),mass,friction,restitution);
+        rb->setActivationState(DISABLE_DEACTIVATION);
+        this->rb->setAngularFactor(btVector3(0.0f, 1.0f, 0.0f));
+        this->rb->setUserPointer(this);
+        this->rb->setUserIndex(2);
+    }
+
 
     //////////////////////////////////////////
     // it returns the current view matrix
     glm::mat4 GetViewMatrix()
     {
-        return glm::lookAt(this->Position, this->Position + this->Front, this->Up);
+        return glm::lookAt(this->Position(), this->Position() + this->Front, this->Up);
     }
 
     //////////////////////////////////////////
@@ -78,14 +107,41 @@ public:
     void ProcessKeyboard(Camera_Movement direction, GLfloat deltaTime)
     {
         GLfloat velocity = this->MovementSpeed * deltaTime;
-        if (direction == FORWARD)
-            this->Position += (this->onGround ? this->WorldFront : this->Front) * velocity;
-        if (direction == BACKWARD)
-            this->Position -= (this->onGround ? this->WorldFront : this->Front) * velocity;
-        if (direction == LEFT)
-            this->Position -= this->Right * velocity;
-        if (direction == RIGHT)
-            this->Position += this->Right * velocity;
+        if(rb==nullptr){
+            if (direction == FORWARD)
+                this->position += (this->onGround ? this->WorldFront : this->Front) * velocity;
+            if (direction == BACKWARD)
+                this->position -= (this->onGround ? this->WorldFront : this->Front) * velocity;
+            if (direction == LEFT)
+                this->position -= this->Right * velocity;
+            if (direction == RIGHT)
+                this->position += this->Right * velocity;
+        }
+        else{
+            if (direction == FORWARD)
+                this->movement += (this->onGround ? this->WorldFront : this->Front) * velocity;
+            if (direction == BACKWARD)
+                this->movement -= (this->onGround ? this->WorldFront : this->Front) * velocity;
+            if (direction == LEFT)
+                this->movement -= this->Right * velocity;
+            if (direction == RIGHT)
+                this->movement += this->Right * velocity;
+    
+        }
+
+
+    }
+
+    void ApllyMovement(){
+        if(rb!=nullptr){
+            movement*=500;
+            btVector3 btmovement= btVector3(movement.x,movement.y,movement.z);
+            btVector3 actualVelocity = this->rb->getLinearVelocity();
+            btmovement.setY(actualVelocity.getY());//avoid to overcome the gravity
+            rb->setLinearVelocity(btmovement);
+            //cout << movement.x<<":"<<movement.y<<":"<<movement.z<<endl;
+            movement= glm::vec3(0.);
+        }
     }
 
     //////////////////////////////////////////

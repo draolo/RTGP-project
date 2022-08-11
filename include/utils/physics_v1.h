@@ -56,7 +56,7 @@ public:
         this->dynamicsWorld = new btDiscreteDynamicsWorld(this->dispatcher,this->overlappingPairCache,this->solver,this->collisionConfiguration);
 
         // we set the gravity force
-        this->dynamicsWorld->setGravity(btVector3(0.0f,-9.82f,0.0f));
+        this->dynamicsWorld->setGravity(btVector3(0.0f,(-9.82f),0.0f));
     }
 
     //////////////////////////////////////////
@@ -144,8 +144,8 @@ public:
         if (type == SPHERE){
             // the sphere touches the plane on the plane on a single point, and thus the friction between sphere and the plane does not work -> the sphere does not stop
             // to avoid the problem, we apply the rolling friction together with an angular damping (which applies a resistence during the rolling movement), in order to make the sphere to stop after a while
-            rbInfo.m_angularDamping =0.3f;
-            rbInfo.m_rollingFriction = 0.3f;
+            //rbInfo.m_angularDamping =0.3f;
+            //rbInfo.m_rollingFriction = 0.3f;
         }
 
         // we create the rigid body

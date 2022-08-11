@@ -387,7 +387,8 @@ int main()
     plane.addRigidbody(bulletSimulation,BOX,0,0.3,0.3);
     cube.addRigidbody(bulletSimulation,BOX,2,0.3,0.3);
     sphere.addRigidbody(bulletSimulation,SPHERE,2,0.3,0.3);
-    bunny.addRigidbody(bulletSimulation,SHAPE,2,0.3,0.3);
+    bunny.addRigidbody(bulletSimulation,SHAPE,0,0.3,0.3);
+    camera.addRigidbody(bulletSimulation,SPHERE,0.1,0.,.0);
 
     //scene.push_back(plane);
     scene.push_back(&sphere);
@@ -717,6 +718,8 @@ void apply_camera_movements()
         camera.ProcessKeyboard(LEFT, deltaTime);
     if(keys[GLFW_KEY_D])
         camera.ProcessKeyboard(RIGHT, deltaTime);
+    
+    camera.ApllyMovement();
 }
 
 //////////////////////////////////////////
@@ -862,7 +865,7 @@ void shoot(){
     // matrix for the inverse matrix of view and projection
     glm::mat4 unproject;
     // we create a Rigid Body with mass = 1
-    GameObject *bullet=new GameObject(camera.Position,bullet_size,rot,bulletModel);
+    GameObject *bullet=new GameObject(camera.Position(),bullet_size,rot,bulletModel);
     bullet->setColor3(bullet_color);
     bullet->addRigidbody(bulletSimulation,SPHERE,.5f,0.3f,0.3f);
     //bullet->rb->setCollisionFlags(btCollisionObject::CF_NO_CONTACT_RESPONSE);
@@ -900,7 +903,7 @@ void shootToPlayer(glm::vec3 from){
     btVector3 impulse;
     // we need a initial rotation, even if useless for a sphere
     glm::vec3 rot = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec4 shoot;
+    glm::vec3 shoot;
     // initial velocity of the bullet
     GLfloat shootInitialSpeed = 15.0f;
     // matrix for the inverse matrix of view and projection
@@ -914,16 +917,7 @@ void shootToPlayer(glm::vec3 from){
     bullet->rb->setUserIndex(1);
     scene.push_back(bullet); 
 
-    shoot=glm::vec4(camera.Position-from,1);
-    // we must retro-project the coordinates of the mouse pointer, in order to have a point in world coordinate to be used to determine a vector from the camera (= direction and orientation of the bullet)
-    // we convert the cursor position (taken from the mouse callback) from Viewport Coordinates to Normalized Device Coordinate (= [-1,1] in both coordinates)
-    // we need a 3D point, so we set a minimum value to the depth with respect to camera position
-    //shoot.z = 1.0f;
-    // w = 1.0 because we are using homogeneous coordinates
-    shoot.w = 1.0f;
-
-    // we determine the inverse matrix for the projection and view transformations
-    //unproject = glm::inverse(projection * view);
+    shoot=camera.Position()-from;
 
     // we convert the position of the cursor from NDC to world coordinates, and we multiply the vector by the initial speed
     shoot = glm::normalize(shoot) * shootInitialSpeed;
