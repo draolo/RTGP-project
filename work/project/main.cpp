@@ -72,6 +72,7 @@ positive Z axis points "outside" the screen
 #include <utils/camera.h>
 #include <utils/physics_v1.h>
 #include <utils/gameObject.h>
+#include <utils/bullet.h>
 
 // we load the GLM classes used in the application
 #include <glm/glm.hpp>
@@ -909,7 +910,7 @@ void shootToPlayer(glm::vec3 from){
     // matrix for the inverse matrix of view and projection
     glm::mat4 unproject;
     // we create a Rigid Body with mass = 1
-    GameObject *bullet=new GameObject(from,bullet_size,rot,bulletModel);
+    Bullet *bullet=new Bullet(from,bullet_size,rot,bulletModel);
     bullet->setColor3(bullet_color);
     bullet->addRigidbody(bulletSimulation,SPHERE,.5f,0.3f,0.3f);
     //bullet->rb->setCollisionFlags(btCollisionObject::CF_NO_CONTACT_RESPONSE);
@@ -928,6 +929,18 @@ void shootToPlayer(glm::vec3 from){
     bullet->rb->applyCentralImpulse(impulse);
 }
 
+void processhit(glm::vec3 from_pos){
+    glm::vec3 dir= projection*view*glm::vec4(from_pos,1.);
+    glm::vec2 dir2d= (glm::normalize(glm::vec2(dir.x,dir.z))*0.5f);
+    float d=glm::distance(from_pos,camera.Position());
+    cout<<d<<endl;
+    float factor=std::max(0.f,std::min(1.f,d*0.15f));
+    cout<<"factor: "<<factor<<endl;
+    dir2d*= factor;//a clamp
+    dir2d+=0.5f;
+    cout<<"("<<dir2d.x<<":"<<dir2d.y<<")"<<endl;
+    add_hit(dir2d.x,dir2d.y);
+}
 
 void checkForCollision(){
     //Go through collisions
@@ -943,10 +956,19 @@ void checkForCollision(){
         GameObject* gameObjB = static_cast<GameObject*>(obB->getUserPointer());
         if(obA->getUserIndex()==1){
             toRem.insert(obA);
+            if(obB->getUserIndex()==2){
+                Bullet* b= static_cast<Bullet*>(gameObjA);
+                processhit(b->shoot_pos);
+            }
             gameObjA->rb=nullptr;
         }
         if(obB->getUserIndex()==1){
             toRem.insert(obB);
+            if(obA->getUserIndex()==2){
+                Bullet* b= static_cast<Bullet*>(gameObjB);
+                processhit(b->shoot_pos);
+
+            }
             gameObjB->rb=nullptr;
             //bulletSimulation.deleteCollisionObject(obB);
             //delete gameObjB;
