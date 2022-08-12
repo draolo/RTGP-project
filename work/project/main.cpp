@@ -378,11 +378,13 @@ int main()
     GameObject plane(plane_pos,plane_size, plane_rot, &cubeModel);
     GameObject sphere(glm::vec3(-3.0f, 0.0f, 0.0f),glm::vec3(0.8,0.8,0.8),glm::vec3(0.0,.0,0.0),&sphereModel);
     GameObject cube(glm::vec3(0.0f, 0.0f, 0.0f),glm::vec3(0.8,0.8,0.8),glm::vec3(0.0,.0,0.0),&cubeModel);
+    GameObject ind(glm::vec3(2.0f, 2.0f, 2.0f),glm::vec3(0.2,0.2,0.2),glm::vec3(0.0,.0,0.0),&cubeModel);
     GameObject bunny(glm::vec3(3.0f, 0.0f, 0.0f),glm::vec3(0.3,0.3,0.3),glm::vec3(0.0,.0,0.0),&bunnyModel);
 
     sphere.setColor3(objectColor);
     cube.setColor3(objectColor);
-    bunny.setColor3(objectColor);   
+    bunny.setColor3(objectColor);  
+    ind.setColor3(objectColor); 
     plane.setColor3(planeColor); 
 
     plane.addRigidbody(bulletSimulation,BOX,0,0.3,0.3);
@@ -395,6 +397,7 @@ int main()
     scene.push_back(&sphere);
     scene.push_back(&cube);
     scene.push_back(&bunny);
+    scene.push_back(&ind);
 
     //set up the hit manager
     for(int i=0;i<MAX_HIT;i++){
@@ -929,17 +932,33 @@ void shootToPlayer(glm::vec3 from){
     bullet->rb->applyCentralImpulse(impulse);
 }
 
+void print2(glm::vec2 v){
+    cout<<"("<<v.x<<":"<<v.y<<")"<<endl;
+}
+
+void print3(glm::vec3 v){
+    cout<<"("<<v.x<<":"<<v.y<<":"<<v.z<<")"<<endl;
+}
+void print4(glm::vec4 v){
+    cout<<"("<<v.x<<":"<<v.y<<":"<<v.z<<":"<<v.w<<")"<<endl;
+}
+
+float clamp(float val, float min, float max){
+    return std::max(min,std::min(max,val));
+}
+
 void processhit(glm::vec3 from_pos){
-    glm::vec3 dir= projection*view*glm::vec4(from_pos,1.);
-    glm::vec2 dir2d= (glm::normalize(glm::vec2(dir.x,dir.z))*0.5f);
-    float d=glm::distance(from_pos,camera.Position());
-    cout<<d<<endl;
-    float factor=std::max(0.f,std::min(1.f,d*0.15f));
-    cout<<"factor: "<<factor<<endl;
-    dir2d*= factor;//a clamp
-    dir2d+=0.5f;
-    cout<<"("<<dir2d.x<<":"<<dir2d.y<<")"<<endl;
+    glm::vec4 dir= projection*view*glm::vec4(from_pos,1.);
+    glm::vec3 ndc = glm::vec3(dir) / dir.w;
+    glm::vec2 viewportCoord = glm::vec2(ndc) * 0.5f + 0.5f; //ndc is -1 to 1 in GL. scale for 0 to 1
+    viewportCoord.x=clamp(viewportCoord.x,0.,1.);
+    viewportCoord.y=clamp(viewportCoord.y,0.,1.);
+    add_hit(viewportCoord.x,viewportCoord.y);
+    
+    /*only border effect
+    glm::vec2 dir2d= (glm::normalize(glm::vec2(dir.x,dir.z))*0.5f)+0.5f;
     add_hit(dir2d.x,dir2d.y);
+    */
 }
 
 void checkForCollision(){
@@ -977,15 +996,9 @@ void checkForCollision(){
     }
 
     for(auto obj:toRem){
-        cout<<"to rem addres "<<obj->getUserPointer()<<endl;
-        cout<<"vector size "<<scene.size()<<endl;
-        cout<<"elements"<<endl;
-        for(int i=0;i<scene.size();i++){
-            cout<<"-"<<scene[i]<<endl;
-        }
+ 
         bulletSimulation.deleteCollisionObject(obj);
         scene.erase(remove(scene.begin(),scene.end(),(GameObject*)obj->getUserPointer()),scene.end());
-        cout<<"vector size after delete "<<scene.size()<<endl;
 
     }
 }

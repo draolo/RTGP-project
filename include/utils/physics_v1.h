@@ -161,8 +161,6 @@ public:
 
     void deleteCollisionObject(btCollisionObject* obj){
         btRigidBody* body = btRigidBody::upcast(obj);
-        cout<<"good"<<endl;
-
         this->collisionShapes.remove(body->getCollisionShape());
         if (body!=nullptr && body->getMotionState()){
             this->dynamicsWorld->removeRigidBody(body);

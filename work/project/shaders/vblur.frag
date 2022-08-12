@@ -224,7 +224,7 @@ void main()
     if(impacted>0){
       vec3 blur=verticalBlur();
       vec3 red=vec3(1,0,0);
-      FragColor = vec4(mix(blur,red,1),0.5);//vec4(vec3(0), 1.0);//vec4(color, 1.0f);
+      FragColor = vec4(mix(blur,red,0.15),0.5);//vec4(vec3(0), 1.0);//vec4(color, 1.0f);
     }else{
       //FragColor = TurbulenceAAstep(1);//vec4(color, 1.0f);
 
