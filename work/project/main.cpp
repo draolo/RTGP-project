@@ -377,8 +377,8 @@ int main()
 
     GameObject plane(plane_pos,plane_size, plane_rot, &cubeModel);
     GameObject sphere(glm::vec3(-3.0f, 0.0f, 0.0f),glm::vec3(0.8,0.8,0.8),glm::vec3(0.0,.0,0.0),&sphereModel);
-    GameObject cube(glm::vec3(0.0f, 0.0f, 0.0f),glm::vec3(0.8,0.8,0.8),glm::vec3(0.0,.0,0.0),&cubeModel);
-    GameObject ind(glm::vec3(2.0f, 2.0f, 2.0f),glm::vec3(0.2,0.2,0.2),glm::vec3(0.0,.0,0.0),&cubeModel);
+    GameObject cube(glm::vec3(0.0f, 3.0f, 0.0f),glm::vec3(1,1,1),glm::vec3(0.0,.0,0.0),&cubeModel);
+    GameObject ind(glm::vec3(2.0f, 2.0f, 2.0f),glm::vec3(.2,.2,.2),glm::vec3(0.0,.0,0.0),&cubeModel);
     GameObject bunny(glm::vec3(3.0f, 0.0f, 0.0f),glm::vec3(0.3,0.3,0.3),glm::vec3(0.0,.0,0.0),&bunnyModel);
 
     sphere.setColor3(objectColor);
@@ -388,7 +388,7 @@ int main()
     plane.setColor3(planeColor); 
 
     plane.addRigidbody(bulletSimulation,BOX,0,0.3,0.3);
-    cube.addRigidbody(bulletSimulation,BOX,2,0.3,0.3);
+    cube.addRigidbody(bulletSimulation,SHAPE,2,0.3,0.3);
     sphere.addRigidbody(bulletSimulation,SPHERE,2,0.3,0.3);
     bunny.addRigidbody(bulletSimulation,SHAPE,0,0.3,0.3);
     camera.addRigidbody(bulletSimulation,SPHERE,0.1,0.,.0);
