@@ -36,8 +36,17 @@ float blurCoeff[31]={0.000012413329783081219,0.000040221571373342736,0.000120178
 //               https://github.com/stegu/webgl-noise/
 //
 
+////////////////////////////////////////////////////////////////////
 
-vec3 GaussianHorizontalBlur(){
+// the "type" of the Subroutine
+subroutine vec3 blur_model();
+
+// Subroutine Uniform (it is conceptually similar to a C pointer function)
+subroutine uniform blur_model Blur_Model;
+
+
+subroutine(blur_model)
+vec3 GaussianBlur(){
   vec2 unit=getTexelUnit();
   vec4 color=vec4(0);
   
@@ -50,8 +59,8 @@ vec3 GaussianHorizontalBlur(){
   return vec3(color);
 }
 
-
-vec3 NonGaussianHorizontalBlur(){
+subroutine(blur_model)
+vec3 NonGaussianBlur(){
   vec2 unit=getTexelUnit();
   vec4 color=vec4(0);
   int lineSize=(2*BLUR_SIZE)+1;
@@ -66,6 +75,6 @@ vec3 NonGaussianHorizontalBlur(){
 
 void main()
 {
-  vec3 blur=NonGaussianHorizontalBlur();
+  vec3 blur=Blur_Model();
   FragColor = vec4(blur,1);
 }

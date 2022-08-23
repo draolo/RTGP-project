@@ -138,14 +138,16 @@ GLuint textureCube;
 
 // index of the current shader subroutine (= 0 in the beginning)
 GLuint current_subroutine = 0;
+GLuint blur_subroutine = 0;
 // a vector for all the shader subroutines names used and swapped in the application
 vector<std::string> shaders;
+vector<std::string> blur_shaders;
 
 // the name of the subroutines are searched in the shaders, and placed in the shaders vector (to allow shaders swapping)
-void SetupShader(int shader_program);
+void SetupShader(int shader_program, vector<std::string> *vec, int startFrom=0);
 
 // print on console the name of current shader subroutine
-void PrintCurrentShader(int subroutine);
+void PrintCurrentShader(int subroutine, vector<std::string> *vec);
 
 // parameters for time computation
 GLfloat deltaTime = 0.0f;
@@ -286,9 +288,11 @@ int main()
    
     // we parse the Shader Program to search for the number and names of the subroutines. 
     // the names are placed in the shaders vector
-    SetupShader(basic_shader.Program);
+    SetupShader(basic_shader.Program, &shaders);
+    SetupShader(horizontal_blur_shader.Program, &blur_shaders, shaders.size());
     // we print on console the name of the first subroutine used
-    PrintCurrentShader(current_subroutine);
+    PrintCurrentShader(current_subroutine, &shaders);
+    PrintCurrentShader(current_subroutine, &blur_shaders);
     //SetupShader(horizontal_blur_shader.Program);
     // we print on console the name of the first subroutine used
 
@@ -548,6 +552,9 @@ int main()
 
 
         horizontal_blur_shader.Use();
+        index = glGetSubroutineIndex(horizontal_blur_shader.Program, GL_FRAGMENT_SHADER, blur_shaders[blur_subroutine].c_str());
+        // we activate the subroutine using the index (this is where shaders swapping happens)
+        glUniformSubroutinesuiv( GL_FRAGMENT_SHADER, 1, &index);
         glUniform1i(glGetUniformLocation(horizontal_blur_shader.Program, "screenTexture"), 1);
 		// Draw the framebuffer rectangle
 		glActiveTexture(GL_TEXTURE1);
@@ -559,7 +566,10 @@ int main()
     	glBindFramebuffer(GL_FRAMEBUFFER,FBO[2]);
 
         vertical_blur_shader.Use();
-            glUniform1i(glGetUniformLocation(vertical_blur_shader.Program, "screenTexture"), 2);
+        index = glGetSubroutineIndex(horizontal_blur_shader.Program, GL_FRAGMENT_SHADER, blur_shaders[blur_subroutine].c_str());
+        // we activate the subroutine using the index (this is where shaders swapping happens)
+        glUniformSubroutinesuiv( GL_FRAGMENT_SHADER, 1, &index);
+        glUniform1i(glGetUniformLocation(vertical_blur_shader.Program, "screenTexture"), 2);
  
 		// Draw the framebuffer rectangle
 		glActiveTexture(GL_TEXTURE2);
@@ -614,7 +624,7 @@ int main()
 // The function parses the content of the Shader Program, searches for the Subroutine type names, 
 // the subroutines implemented for each type, print the names of the subroutines on the terminal, and add the names of 
 // the subroutines to the shaders vector, which is used for the shaders swapping
-void SetupShader(int program)
+void SetupShader(int program, vector<string> *vector, int startFrom)
 {
     int maxSub,maxSubU,countActiveSU;
     GLchar name[256]; 
@@ -635,7 +645,7 @@ void SetupShader(int program)
         // get the name of the Subroutine uniform (in this example, we have only one)
         glGetActiveSubroutineUniformName(program, GL_FRAGMENT_SHADER, i, 256, &len, name);
         // print index and name of the Subroutine uniform
-        std::cout << "Subroutine Uniform: " << i << " - name: " << name << std::endl;
+        std::cout << "Subroutine Uniform: " << i<< " - name: " << name << std::endl;
 
         // get the number of subroutines
         glGetActiveSubroutineUniformiv(program, GL_FRAGMENT_SHADER, i, GL_NUM_COMPATIBLE_SUBROUTINES, &numCompS);
@@ -648,8 +658,8 @@ void SetupShader(int program)
         // for each index, get the name of the subroutines, print info, and save the name in the shaders vector
         for (int j=0; j < numCompS; ++j) {
             glGetActiveSubroutineName(program, GL_FRAGMENT_SHADER, s[j], 256, &len, name);
-            std::cout << "\t" << s[j] << " - " << name << "\n";
-            shaders.push_back(name);
+            std::cout << "\t" << s[j]+startFrom+1 << " - " << name << "\n";
+            vector->push_back(name);
         }
         std::cout << std::endl;
         
@@ -659,9 +669,9 @@ void SetupShader(int program)
 
 //////////////////////////////////////////
 // we print on console the name of the currently used shader subroutine
-void PrintCurrentShader(int subroutine)
+void PrintCurrentShader(int subroutine, vector<string> *vector)
 {
-    std::cout << "Current shader subroutine: " << shaders[subroutine]  << std::endl;
+    std::cout << "Current shader subroutine: " << (*vector)[subroutine]  << std::endl;
 }
 
 //////////////////////////////////////////
@@ -701,7 +711,14 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         if (new_subroutine<shaders.size())
         {
             current_subroutine = new_subroutine;
-            PrintCurrentShader(current_subroutine);
+            PrintCurrentShader(current_subroutine, &shaders);
+        }else{
+            new_subroutine=new_subroutine-shaders.size();
+            if (new_subroutine<blur_shaders.size())
+            {
+                blur_subroutine = new_subroutine;
+                PrintCurrentShader(blur_subroutine, &blur_shaders);
+            }
         }
     }
 
