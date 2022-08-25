@@ -80,6 +80,7 @@ positive Z axis points "outside" the screen
 #include <utils/physics_v1.h>
 #include <utils/gameObject.h>
 #include <utils/bullet.h>
+#include <utils/enemiesAI.h>
 
 // we load the GLM classes used in the application
 #include <glm/glm.hpp>
@@ -388,7 +389,7 @@ int main()
     GameObject plane(plane_pos,plane_size, plane_rot, &cubeModel);
     GameObject sphere(glm::vec3(-3.0f, 0.0f, 0.0f),glm::vec3(0.8,0.8,0.8),glm::vec3(0.0,.0,0.0),&sphereModel);
     GameObject cube(glm::vec3(0.0f, 3.0f, 0.0f),glm::vec3(1,1,1),glm::vec3(0.0,.0,0.0),&cubeModel);
-    GameObject ind(glm::vec3(2.0f, 2.0f, 2.0f),glm::vec3(.2,.2,.2),glm::vec3(0.0,.0,0.0),&cubeModel);
+    enemiesAI ind(glm::vec3(2.0f, 2.0f, 2.0f),glm::vec3(.2,.2,.2),glm::vec3(0.0,.0,0.0),&cubeModel, &camera);
     GameObject bunny(glm::vec3(3.0f, 0.0f, 0.0f),glm::vec3(0.3,0.3,0.3),glm::vec3(0.0,.0,0.0),&bunnyModel);
 
     sphere.setColor3(objectColor);
@@ -402,6 +403,7 @@ int main()
     sphere.addRigidbody(bulletSimulation,SPHERE,2,0.3,0.3);
     bunny.addRigidbody(bulletSimulation,SHAPE,0,0.3,0.3);
     camera.addRigidbody(bulletSimulation,SPHERE,0.1,0.,.0);
+    ind.addRigidbody(bulletSimulation,SPHERE,0.5,0.8,0.8);
 
     //scene.push_back(plane);
     scene.push_back(&sphere);
@@ -409,6 +411,10 @@ int main()
     scene.push_back(&bunny);
     scene.push_back(&ind);
 
+
+    ind.rb->setLinearFactor(btVector3(1,0,1)); //enemies could not change altitude
+    ind.rb->setAngularFactor(btVector3(0,1,0));
+    ind.rb->setDamping(0.5,0.5);
     //set up the hit manager
     for(int i=0;i<MAX_HIT;i++){
         powers[i]=0.0f;
@@ -459,11 +465,28 @@ int main()
             orientationY+=(deltaTime*spin_speed);
 
         update_hits(deltaTime);
+        set<btRigidBody*> toRem;
+        for (auto gameObject : scene) // access by reference to avoid copying
+        {  
+            if(!gameObject->CheckLife(currentFrame)){
+                toRem.insert(gameObject->rb);
+            }
+        }
+        for(auto obj:toRem){
+        bulletSimulation.deleteCollisionObject(obj);
+        scene.erase(remove(scene.begin(),scene.end(),(GameObject*)obj->getUserPointer()),scene.end());
+        delete obj;
+        }   
 
         // we update the physics simulation. We must pass the deltatime to be used for the update of the physical state of the scene. The default value for Bullet is 60 Hz, for lesser deltatime the library interpolates and does not calculate the simulation. In this example, we use deltatime from the last rendering: if it is < 1\60 sec, than we use it, otherwise we use the deltatime we have set above
         // we also set the max number of substeps to consider for the simulation (=10)
         bulletSimulation.dynamicsWorld->stepSimulation((deltaTime < maxSecPerFrame ? deltaTime : maxSecPerFrame),10);
         checkForCollision();
+        ind.Update(currentFrame);
+        if(ind.getShootAndReset()){
+            btVector3 pos= ind.rb->getCenterOfMassPosition();
+            shootToPlayer(glm::vec3(pos.getX(),pos.getY()-0.6,pos.getZ()));
+        }
 
 
         /////////////////// PLANE ////////////////////////////////////////////////
@@ -515,6 +538,7 @@ int main()
 
         for (auto gameObject : scene) // access by reference to avoid copying
         {  
+
             gameObject->Draw(view,basic_shader);
         }
         
@@ -693,7 +717,8 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         wireframe=!wireframe;
     if(key == GLFW_KEY_SPACE && action == GLFW_PRESS)
     {
-        shootToPlayer(glm::vec3(2.,2.,2.));
+        //shootToPlayer(glm::vec3(2.,2.,2.));
+        shoot();
     }
     // pressing a key number, we change the shader applied to the models
     // if the key is between 1 and 9, we proceed and check if the pressed key corresponds to
@@ -891,7 +916,7 @@ void shoot(){
     // matrix for the inverse matrix of view and projection
     glm::mat4 unproject;
     // we create a Rigid Body with mass = 1
-    GameObject *bullet=new GameObject(camera.Position(),bullet_size,rot,bulletModel);
+    GameObject *bullet=new GameObject(camera.Position()+ (camera.Front*2.0f),bullet_size,rot,bulletModel);
     bullet->setColor3(bullet_color);
     bullet->addRigidbody(bulletSimulation,SPHERE,.5f,0.3f,0.3f);
     //bullet->rb->setCollisionFlags(btCollisionObject::CF_NO_CONTACT_RESPONSE);
@@ -986,7 +1011,6 @@ void processhit(glm::vec3 from_pos){
 void checkForCollision(){
     //Go through collisions
     int numManifolds = bulletSimulation.dispatcher->getNumManifolds();
-    set<btCollisionObject*> toRem;
     for (int i = 0; i < numManifolds; i++)
     {
         btPersistentManifold* contactManifold = bulletSimulation.dispatcher->getManifoldByIndexInternal(i);
@@ -996,31 +1020,26 @@ void checkForCollision(){
         GameObject* gameObjA = static_cast<GameObject*>(obA->getUserPointer());
         GameObject* gameObjB = static_cast<GameObject*>(obB->getUserPointer());
         if(obA->getUserIndex()==1){
-            toRem.insert(obA);
             if(obB->getUserIndex()==2){
                 Bullet* b= static_cast<Bullet*>(gameObjA);
-                processhit(b->shoot_pos);
+                if(b->active){
+                    processhit(b->shoot_pos);
+                   gameObjA->Die(lastFrame);//immediate die if hit the player to avoid massive knockback
+                }
             }
-            gameObjA->rb=nullptr;
+            gameObjA->Die(lastFrame+0.2);
         }
         if(obB->getUserIndex()==1){
-            toRem.insert(obB);
             if(obA->getUserIndex()==2){
                 Bullet* b= static_cast<Bullet*>(gameObjB);
-                processhit(b->shoot_pos);
-
+                if(b->active){
+                    processhit(b->shoot_pos);
+                    gameObjB->Die(lastFrame);
+                }
             }
-            gameObjB->rb=nullptr;
-            //bulletSimulation.deleteCollisionObject(obB);
-            //delete gameObjB;
+            gameObjB->Die(lastFrame+0.2);
         }
+    }
+
     
-    }
-
-    for(auto obj:toRem){
- 
-        bulletSimulation.deleteCollisionObject(obj);
-        scene.erase(remove(scene.begin(),scene.end(),(GameObject*)obj->getUserPointer()),scene.end());
-
-    }
 }

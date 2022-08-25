@@ -32,10 +32,13 @@ public:
     float alpha; // rugosity - 0 : smooth, 1: rough
     float f0; // fresnel reflectance at normal incidence
 
+    float deathTime;
+    bool active;
+
 private:
     /* data */
 public:
-    GameObject(glm::vec3 pos, glm::vec3 s, glm::vec3 r, Model* m): position(pos),scale(s),rotation(r),model(m), shininess(SHININESS),alpha(alpha),f0(F0){
+    GameObject(glm::vec3 pos, glm::vec3 s, glm::vec3 r, Model* m): position(pos),scale(s),rotation(r),model(m), shininess(SHININESS),alpha(alpha),f0(F0),active(true), deathTime(0){
         rb=nullptr;
     }
     ~GameObject();
@@ -95,6 +98,18 @@ public:
         color[1]=c[1];
         color[2]=c[2];
     } 
+    void Die(float expectedDeathTime){
+        if(active){
+            active=false;
+            deathTime=expectedDeathTime;
+        }
+    }
+    bool CheckLife(float currentTime){
+        if(!active && currentTime>deathTime){
+            return false;
+        }
+        return true;
+    }
 
 };
 
