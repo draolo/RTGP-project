@@ -46,6 +46,25 @@ positive Z axis points "outside" the screen
     TEXTURE 0: CUBEMAP
     TEXTURE 1: BASIC RENDER
     TEXTURE 2: OPERATIVE/MIDDLE TEXTURES
+    TEXTURE 3: IMMAGINARY RENDER
+*/
+
+/*
+    FOB 4 custom + default one:
+    c0: Basic render
+    c1: horizontal blur
+    c2: vertical blur
+    c3: immaginary horizontal render 
+    0:  mix(final render)
+
+*/
+
+/*
+    levels
+    0->1: 5
+    1->2: 10
+    2->3: 15
+    3->4: 25
 */
 
 // Std. Includes
@@ -93,7 +112,7 @@ positive Z axis points "outside" the screen
 #include <stb_image/stb_image.h>
 
 #define MAX_HIT 16
-#define NUMBER_OF_FBO 3
+#define NUMBER_OF_FBO 4
 
 // dimensions of application's window
 GLuint screenWidth = 800, screenHeight = 600;
@@ -280,6 +299,7 @@ int main()
 
     // we create the Shader Program used for objects (which presents different subroutines we can switch)
     Shader horizontal_blur_shader = Shader("shaders/framebuffer.vert", "shaders/hblur.frag");
+    Shader immaginary_horizontal_blur_shader= Shader("shaders/framebuffer.vert", "shaders/hblurImgPart.frag");
     Shader vertical_blur_shader = Shader("shaders/framebuffer.vert", "shaders/vblur.frag");
     Shader mix_shader = Shader("shaders/framebuffer.vert", "shaders/mix.frag");
    
@@ -389,7 +409,7 @@ int main()
     GameObject plane(plane_pos,plane_size, plane_rot, &cubeModel);
     GameObject sphere(glm::vec3(-3.0f, 0.0f, 0.0f),glm::vec3(0.8,0.8,0.8),glm::vec3(0.0,.0,0.0),&sphereModel);
     GameObject cube(glm::vec3(0.0f, 3.0f, 0.0f),glm::vec3(1,1,1),glm::vec3(0.0,.0,0.0),&cubeModel);
-    enemiesAI ind(glm::vec3(2.0f, 2.0f, 2.0f),glm::vec3(.2,.2,.2),glm::vec3(0.0,.0,0.0),&cubeModel, &camera);
+    enemiesAI ind(glm::vec3(2.0f, 2.0f, 2.0f),glm::vec3(.2,.2,.2),glm::vec3(0.0,.0,0.0),&cubeModel, &camera,lastFrame);
     GameObject bunny(glm::vec3(3.0f, 0.0f, 0.0f),glm::vec3(0.3,0.3,0.3),glm::vec3(0.0,.0,0.0),&bunnyModel);
 
     sphere.setColor3(objectColor);
@@ -573,7 +593,7 @@ int main()
         // Bind the intermediate framebuffer
         
     	glBindFramebuffer(GL_FRAMEBUFFER, FBO[1]);
-
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         horizontal_blur_shader.Use();
         index = glGetSubroutineIndex(horizontal_blur_shader.Program, GL_FRAGMENT_SHADER, blur_shaders[blur_subroutine].c_str());
@@ -587,13 +607,35 @@ int main()
 		glBindTexture(GL_TEXTURE_2D, framebufferTexture[0]);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
         
-    	glBindFramebuffer(GL_FRAMEBUFFER,FBO[2]);
 
+
+        if(blur_shaders[blur_subroutine].find("DOF")!= std::string::npos){
+            glBindFramebuffer(GL_FRAMEBUFFER,FBO[3]);
+    		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            immaginary_horizontal_blur_shader.Use();
+            index = glGetSubroutineIndex(immaginary_horizontal_blur_shader.Program, GL_FRAGMENT_SHADER, blur_shaders[blur_subroutine].c_str());
+            // we activate the subroutine using the index (this is where shaders swapping happens)
+            glUniformSubroutinesuiv( GL_FRAGMENT_SHADER, 1, &index);
+            glUniform1i(glGetUniformLocation(horizontal_blur_shader.Program, "screenTexture"), 1);
+		    // Draw the framebuffer rectangle
+            glActiveTexture(GL_TEXTURE1);
+            glBindVertexArray(rectVAO);
+            glDisable(GL_DEPTH_TEST); // prevents framebuffer rectangle from being discarded
+            glBindTexture(GL_TEXTURE_2D, framebufferTexture[0]);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+		    glActiveTexture(GL_TEXTURE3);
+    		glBindTexture(GL_TEXTURE_2D, framebufferTexture[3]);
+		    glActiveTexture(GL_TEXTURE0);
+        }
+        
+        glBindFramebuffer(GL_FRAMEBUFFER,FBO[2]);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         vertical_blur_shader.Use();
         index = glGetSubroutineIndex(horizontal_blur_shader.Program, GL_FRAGMENT_SHADER, blur_shaders[blur_subroutine].c_str());
         // we activate the subroutine using the index (this is where shaders swapping happens)
         glUniformSubroutinesuiv( GL_FRAGMENT_SHADER, 1, &index);
         glUniform1i(glGetUniformLocation(vertical_blur_shader.Program, "screenTexture"), 2);
+        glUniform1i(glGetUniformLocation(vertical_blur_shader.Program, "immaginaryTexture"), 3);
  
 		// Draw the framebuffer rectangle
 		glActiveTexture(GL_TEXTURE2);
@@ -604,6 +646,7 @@ int main()
 
 
     	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         mix_shader.Use();
         glUniform1i(glGetUniformLocation(mix_shader.Program, "screenTexture"), 1);
         glUniform1i(glGetUniformLocation(mix_shader.Program, "blurTexture"), 2);

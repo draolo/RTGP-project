@@ -192,7 +192,7 @@ void main()
     }
     if(impacted>0){
         vec4 red= vec4(1.,0.,0.,1.);
-        FragColor=mix(red,texture(blurTexture, texCoords.st),0.95);
+        FragColor=mix(red,texture(blurTexture, texCoords.st),1);
     }else{
         FragColor=texture(screenTexture, texCoords.st);
     }

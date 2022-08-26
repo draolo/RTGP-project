@@ -81,33 +81,6 @@ subroutine uniform blur_model Blur_Model;
 
 
 subroutine(blur_model)
-vec3 GaussianBlur(){
-  vec2 unit=getTexelUnit();
-  vec4 color=vec4(0);
-  
-  for(int i=0;i<=2*BLUR_SIZE;i++ ){
-    float x_offset=((i-BLUR_SIZE)*unit.x);
-    //float x_offset=texCoords.x+((float)(i-BLUR_SIZE)*unit.x);
-    vec2 offset= vec2(x_offset,0.0);
-    color+=texture(screenTexture, texCoords.st+offset)*gaussianCoeff[i];
-  }
-  return vec3(color);
-}
-
-subroutine(blur_model)
-vec3 NonGaussianBlur(){
-  vec2 unit=getTexelUnit();
-  vec4 color=vec4(0);
-  int lineSize=(2*BLUR_SIZE)+1;
-  for(int i=0;i<=2*BLUR_SIZE;i++ ){
-    float x_offset=((i-BLUR_SIZE)*unit.x);
-    //float x_offset=texCoords.x+((float)(i-BLUR_SIZE)*unit.x);
-    vec2 offset= vec2(x_offset,0.0);
-    color+=texture(screenTexture, texCoords.st+offset);
-  }
-  return vec3(color)*(1.0f/float(lineSize));
-}
-subroutine(blur_model)
 vec3 DOFCircular(){
     //real part only
     vec2 unit = getTexelUnit();
@@ -117,8 +90,8 @@ vec3 DOFCircular(){
     {
         vec2 coords = texCoords + unit*vec2(float(i),0.0);
         vec3 imageTexel = vec3(texture(screenTexture, coords));
-        float c0r = Kernel0_RealX_ImY_RealZ_ImW[i+BLUR_SIZE].x;
-        val += imageTexel * c0r;
+        float c0i = Kernel0_RealX_ImY_RealZ_ImW[i+BLUR_SIZE].y;
+        val += imageTexel * c0i;
     }
     return val;
 }
@@ -133,8 +106,8 @@ vec3 DOFSquare(){
     {
         vec2 coords = texCoords + unit*vec2(float(i),0.0);
         vec3 imageTexel = vec3(texture(screenTexture, coords));
-        float c0r = Kernel0_RealX_ImY_RealZ_ImW[i+BLUR_SIZE].z;
-        val += imageTexel * c0r;
+        float c0i = Kernel0_RealX_ImY_RealZ_ImW[i+BLUR_SIZE].w;
+        val += imageTexel * c0i;
     }
     return val;
 }
