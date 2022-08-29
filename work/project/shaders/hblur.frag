@@ -80,6 +80,13 @@ subroutine vec3 blur_model();
 subroutine uniform blur_model Blur_Model;
 
 
+vec3 lumaCorrection(vec3 pixel){
+  float lum = dot(pixel.rgb,vec3(0.2126,0.7152,0.0722))*1.8;
+  vec3 colorImg = pixel *(1.0 + 0.2*lum*lum*lum);
+  return colorImg*colorImg;
+}
+
+
 subroutine(blur_model)
 vec3 GaussianBlur(){
   vec2 unit=getTexelUnit();
@@ -107,6 +114,7 @@ vec3 NonGaussianBlur(){
   }
   return vec3(color)*(1.0f/float(lineSize));
 }
+
 subroutine(blur_model)
 vec3 DOFCircular(){
     //real part only
@@ -117,6 +125,7 @@ vec3 DOFCircular(){
     {
         vec2 coords = texCoords + unit*vec2(float(i),0.0);
         vec3 imageTexel = vec3(texture(screenTexture, coords));
+        imageTexel=lumaCorrection(imageTexel);
         float c0r = Kernel0_RealX_ImY_RealZ_ImW[i+BLUR_SIZE].x;
         val += imageTexel * c0r;
     }
@@ -133,6 +142,7 @@ vec3 DOFSquare(){
     {
         vec2 coords = texCoords + unit*vec2(float(i),0.0);
         vec3 imageTexel = vec3(texture(screenTexture, coords));
+        imageTexel=lumaCorrection(imageTexel);
         float c0r = Kernel0_RealX_ImY_RealZ_ImW[i+BLUR_SIZE].z;
         val += imageTexel * c0r;
     }

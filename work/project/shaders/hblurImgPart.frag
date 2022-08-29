@@ -80,6 +80,12 @@ subroutine vec3 blur_model();
 subroutine uniform blur_model Blur_Model;
 
 
+vec3 lumaCorrection(vec3 pixel){
+  float lum = dot(pixel.rgb,vec3(0.2126,0.7152,0.0722))*1.8;
+  vec3 colorImg = pixel *(1.0 + 0.2*lum*lum*lum);
+  return colorImg*colorImg;
+}
+
 subroutine(blur_model)
 vec3 DOFCircular(){
     //real part only
@@ -90,6 +96,7 @@ vec3 DOFCircular(){
     {
         vec2 coords = texCoords + unit*vec2(float(i),0.0);
         vec3 imageTexel = vec3(texture(screenTexture, coords));
+        imageTexel=lumaCorrection(imageTexel);
         float c0i = Kernel0_RealX_ImY_RealZ_ImW[i+BLUR_SIZE].y;
         val += imageTexel * c0i;
     }
@@ -104,8 +111,9 @@ vec3 DOFSquare(){
     float filterRadius = BLUR_SIZE;
     for (int i=-BLUR_SIZE; i <=BLUR_SIZE; ++i)
     {
-        vec2 coords = texCoords + unit*vec2(float(i),0.0);
+        vec2 coords = texCoords + unit*vec2(float(i),0.00);
         vec3 imageTexel = vec3(texture(screenTexture, coords));
+        imageTexel=lumaCorrection(imageTexel);
         float c0i = Kernel0_RealX_ImY_RealZ_ImW[i+BLUR_SIZE].w;
         val += imageTexel * c0i;
     }

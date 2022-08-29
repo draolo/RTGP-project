@@ -47,6 +47,7 @@ positive Z axis points "outside" the screen
     TEXTURE 1: BASIC RENDER
     TEXTURE 2: OPERATIVE/MIDDLE TEXTURES
     TEXTURE 3: IMMAGINARY RENDER
+    TEXTURE 4: TEXT FONT    
 */
 
 /*
@@ -111,9 +112,25 @@ positive Z axis points "outside" the screen
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image/stb_image.h>
 
+#include <ft2build.h>
+#include FT_FREETYPE_H  
+
+#include <map>
+
 #define MAX_HIT 16
 #define NUMBER_OF_FBO 4
 
+
+struct Character {
+    unsigned int TextureID;  // ID handle of the glyph texture
+    glm::ivec2   Size;       // Size of glyph
+    glm::ivec2   Bearing;    // Offset from baseline to left/top of glyph
+    unsigned int Advance;    // Offset to advance to next glyph
+};
+
+std::map<char, Character> Characters;
+void RenderText(Shader &s, std::string text, float x, float y, float scale, glm::vec3 color);
+int SetupFreetype(Shader &s);
 // dimensions of application's window
 GLuint screenWidth = 800, screenHeight = 600;
 
@@ -182,12 +199,6 @@ double cursorX,cursorY;
 // when rendering the first frame, we do not have a "previous state" for the mouse, so we need to manage this situation
 bool firstMouse = true;
 
-// rotation angle on Y axis
-GLfloat orientationY = 0.0f;
-// rotation speed on Y axis
-GLfloat spin_speed = 30.0f;
-// boolean to start/stop animated rotation on Y angle
-GLboolean spinning = GL_TRUE;
 
 glm::vec3 lightPos0 = glm::vec3(5.0f, 10.0f, 10.0f);
 //GLfloat lightColor[] = {1.0f,1.0f,1.0f};
@@ -201,14 +212,11 @@ GLfloat Kd = 0.5f;
 GLfloat Ks = 0.4f;
 GLfloat Ka = 0.1f;
 
-GLfloat planeMaterial[] = {0.0f,0.5f,0.0f};
 
 
 // boolean to activate/deactivate wireframe rendering
 GLboolean wireframe = GL_FALSE;
 
-// velocity for noise animation effect (for the animated subroutine)
-GLfloat speed = 5.0;
 
 // color to be passed as uniform to the shader of the plane
 GLfloat planeColor[] = {0.0,0.5,0.0};
@@ -225,6 +233,8 @@ GLfloat maxSecPerFrame = 1.0f / 60.0f;
 // instance of the physics class
 Physics bulletSimulation;
 
+unsigned int textVAO, textVBO;
+
 float rectangleVertices[] =
 {
 	// Coords    // texCoords
@@ -238,6 +248,16 @@ float rectangleVertices[] =
 };
 
 vector<GameObject*> scene;
+void SetupScene();
+
+bool gameHasStart=false;
+bool gameOver=false;
+int life;
+int score;
+int level;
+
+void StartGame();
+void GameOver();
 
 /////////////////// MAIN function ///////////////////////
 int main()
@@ -302,6 +322,7 @@ int main()
     Shader immaginary_horizontal_blur_shader= Shader("shaders/framebuffer.vert", "shaders/hblurImgPart.frag");
     Shader vertical_blur_shader = Shader("shaders/framebuffer.vert", "shaders/vblur.frag");
     Shader mix_shader = Shader("shaders/framebuffer.vert", "shaders/mix.frag");
+    Shader text_shader = Shader("shaders/text.vert", "shaders/text.frag");
    
     // we create the Shader Program used for the environment map
     Shader skybox_shader("shaders/17_skybox.vert", "shaders/18_skybox.frag");
@@ -327,9 +348,12 @@ int main()
 	// Uses counter clock-wise standard
 	glFrontFace(GL_CCW);
 
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
+
     // Specify the color of the background
-    
     unsigned int rectVAO, rectVBO;
+    
 	glGenVertexArrays(1, &rectVAO);
 	glGenBuffers(1, &rectVBO);
 	glBindVertexArray(rectVAO);
@@ -352,26 +376,27 @@ int main()
 	glGenRenderbuffers(NUMBER_OF_FBO, RBO);
 
     for(int i=0;i<NUMBER_OF_FBO;i++){
-	glBindFramebuffer(GL_FRAMEBUFFER, FBO[i]);
-	glBindTexture(GL_TEXTURE_2D, framebufferTexture[i]);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // Prevents edge bleeding
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); // Prevents edge bleeding
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, framebufferTexture[i], 0);
-	glBindRenderbuffer(GL_RENDERBUFFER, RBO[i]);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO[i]);
-   
-    // Error checking framebuffer
-	auto fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
-		std::cout << "Framebuffer "<<i<<" error: " << fboStatus << std::endl;
+        glBindFramebuffer(GL_FRAMEBUFFER, FBO[i]);
+        glBindTexture(GL_TEXTURE_2D, framebufferTexture[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // Prevents edge bleeding
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); // Prevents edge bleeding
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, framebufferTexture[i], 0);
+        glBindRenderbuffer(GL_RENDERBUFFER, RBO[i]);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO[i]);
+    
+        // Error checking framebuffer
+        auto fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+        if (fboStatus != GL_FRAMEBUFFER_COMPLETE){
+            std::cout << "Framebuffer "<<i<<" error: " << fboStatus << std::endl;
+            return -1;
+        }
     }
-    // Bind the custom framebuffer
-	glBindFramebuffer(GL_FRAMEBUFFER, FBO[0]);
 
+    SetupScene();
     
     // we load the cube map (we pass the path to the folder containing the 6 views)
     textureCube = LoadTextureCube("../../textures/cube/Park2/", "png");
@@ -380,58 +405,30 @@ int main()
      // we load the model(s) (code of Model class is in include/utils/model_v1.h)
     Model skyboxModel("../../models/cube.obj"); // used for the environment map
 
-    Model cubeModel("../../models/cube.obj");
-    Model sphereModel("../../models/sphere.obj");
-    Model bunnyModel("../../models/bunny_lp.obj");
 
-    bulletModel=&sphereModel;
 
     // Projection matrix: FOV angle, aspect ratio, near and far planes
     projection = glm::perspective(45.0f, (float)screenWidth/(float)screenHeight, 0.1f, 10000.0f);
     // View matrix (=camera): position, view direction, camera "up" vector
     view = glm::lookAt(glm::vec3(0.0f, 0.0f, 7.0f), glm::vec3(0.0f, 0.0f, -7.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-    // Model and Normal transformation matrices for the objects in the scene: we set to identity
-    glm::mat4 sphereModelMatrix = glm::mat4(1.0f);
-    glm::mat3 sphereNormalMatrix = glm::mat3(1.0f);
-    glm::mat4 cubeModelMatrix = glm::mat4(1.0f);
-    glm::mat3 cubeNormalMatrix = glm::mat3(1.0f);
-    glm::mat4 bunnyModelMatrix = glm::mat4(1.0f);
-    glm::mat3 bunnyNormalMatrix = glm::mat3(1.0f);
+    camera.addRigidbody(bulletSimulation,SPHERE,0.1,0.,.0);
+
+
     glm::mat4 planeModelMatrix = glm::mat4(1.0f);
     glm::mat3 planeNormalMatrix = glm::mat3(1.0f);
     
     glm::vec3 plane_pos = glm::vec3(0.0f, -1.0f, 0.0f);
     glm::vec3 plane_size = glm::vec3(200.0f, 0.1f, 200.0f);
     glm::vec3 plane_rot = glm::vec3(0.0f, 0.0f, 0.0f);
-
-
-    GameObject plane(plane_pos,plane_size, plane_rot, &cubeModel);
-    GameObject sphere(glm::vec3(-3.0f, 0.0f, 0.0f),glm::vec3(0.8,0.8,0.8),glm::vec3(0.0,.0,0.0),&sphereModel);
-    GameObject cube(glm::vec3(0.0f, 3.0f, 0.0f),glm::vec3(1,1,1),glm::vec3(0.0,.0,0.0),&cubeModel);
-    enemiesAI ind(glm::vec3(2.0f, 2.0f, 2.0f),glm::vec3(.2,.2,.2),glm::vec3(0.0,.0,0.0),&cubeModel, &camera,lastFrame);
-    GameObject bunny(glm::vec3(3.0f, 0.0f, 0.0f),glm::vec3(0.3,0.3,0.3),glm::vec3(0.0,.0,0.0),&bunnyModel);
-
-    sphere.setColor3(objectColor);
-    cube.setColor3(objectColor);
-    bunny.setColor3(objectColor);  
-    ind.setColor3(objectColor); 
+    GameObject plane(plane_pos,plane_size, plane_rot, &skyboxModel);
     plane.setColor3(planeColor); 
-
     plane.addRigidbody(bulletSimulation,BOX,0,0.3,0.3);
-    cube.addRigidbody(bulletSimulation,SHAPE,2,0.3,0.3);
-    sphere.addRigidbody(bulletSimulation,SPHERE,2,0.3,0.3);
-    bunny.addRigidbody(bulletSimulation,SHAPE,0,0.3,0.3);
-    camera.addRigidbody(bulletSimulation,SPHERE,0.1,0.,.0);
-    ind.addRigidbody(bulletSimulation,SPHERE,0.5,0.8,0.8);
 
-    //scene.push_back(plane);
-    scene.push_back(&sphere);
-    scene.push_back(&cube);
-    scene.push_back(&bunny);
+    enemiesAI ind(glm::vec3(2.0f, 2.0f, 2.0f),glm::vec3(.2,.2,.2),glm::vec3(0.0,.0,0.0),&skyboxModel, &camera,lastFrame);
+    ind.setColor3(objectColor); 
     scene.push_back(&ind);
-
-
+    ind.addRigidbody(bulletSimulation,SPHERE,0.5,0.8,0.8);
     ind.rb->setLinearFactor(btVector3(1,0,1)); //enemies could not change altitude
     ind.rb->setAngularFactor(btVector3(0,1,0));
     ind.rb->setDamping(0.5,0.5);
@@ -440,6 +437,12 @@ int main()
         powers[i]=0.0f;
     }
 
+
+    if(SetupFreetype(text_shader)==-1){
+        return -1;
+    }
+
+    
     // we set the maximum delta time for the update of the physical simulation
     GLfloat maxSecPerFrame = 1.0f / 60.0f;
 
@@ -448,9 +451,7 @@ int main()
     {
        // Bind the custom framebuffer
 		glBindFramebuffer(GL_FRAMEBUFFER, FBO[0]);
-
         glClearColor(0.26f, 0.46f, 0.98f, 1.0f);
-        
 		// Clean the back buffer and depth buffer
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		// Enable depth testing since it's disabled when drawing the framebuffer rectangle
@@ -461,10 +462,9 @@ int main()
         GLfloat currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
-
+        int fps= 1.0/deltaTime;
         // Check is an I/O event is happening
         glfwPollEvents();
-
         // we apply FPS camera movements
         apply_camera_movements();
         // View matrix (=camera): position, view direction, camera "up" vector
@@ -480,34 +480,32 @@ int main()
         else
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-        // if animated rotation is activated, than we increment the rotation angle using delta time and the rotation speed parameter
-        if (spinning)
-            orientationY+=(deltaTime*spin_speed);
 
-        update_hits(deltaTime);
-        set<btRigidBody*> toRem;
-        for (auto gameObject : scene) // access by reference to avoid copying
-        {  
-            if(!gameObject->CheckLife(currentFrame)){
-                toRem.insert(gameObject->rb);
+        if(gameHasStart){
+            update_hits(deltaTime);
+            set<btRigidBody*> toRem;
+            for (auto gameObject : scene) // access by reference to avoid copying
+            {  
+                if(!gameObject->CheckLife(currentFrame)){
+                    toRem.insert(gameObject->rb);
+                }
+            }
+            for(auto obj:toRem){
+            bulletSimulation.deleteCollisionObject(obj);
+            scene.erase(remove(scene.begin(),scene.end(),(GameObject*)obj->getUserPointer()),scene.end());
+            delete obj;
+            }   
+
+            // we update the physics simulation. We must pass the deltatime to be used for the update of the physical state of the scene. The default value for Bullet is 60 Hz, for lesser deltatime the library interpolates and does not calculate the simulation. In this example, we use deltatime from the last rendering: if it is < 1\60 sec, than we use it, otherwise we use the deltatime we have set above
+            // we also set the max number of substeps to consider for the simulation (=10)
+            bulletSimulation.dynamicsWorld->stepSimulation((deltaTime < maxSecPerFrame ? deltaTime : maxSecPerFrame),10);
+            checkForCollision();
+            ind.Update(currentFrame);
+            if(ind.getShootAndReset()){
+                btVector3 pos= ind.rb->getCenterOfMassPosition();
+                shootToPlayer(glm::vec3(pos.getX(),pos.getY()-0.6,pos.getZ()));
             }
         }
-        for(auto obj:toRem){
-        bulletSimulation.deleteCollisionObject(obj);
-        scene.erase(remove(scene.begin(),scene.end(),(GameObject*)obj->getUserPointer()),scene.end());
-        delete obj;
-        }   
-
-        // we update the physics simulation. We must pass the deltatime to be used for the update of the physical state of the scene. The default value for Bullet is 60 Hz, for lesser deltatime the library interpolates and does not calculate the simulation. In this example, we use deltatime from the last rendering: if it is < 1\60 sec, than we use it, otherwise we use the deltatime we have set above
-        // we also set the max number of substeps to consider for the simulation (=10)
-        bulletSimulation.dynamicsWorld->stepSimulation((deltaTime < maxSecPerFrame ? deltaTime : maxSecPerFrame),10);
-        checkForCollision();
-        ind.Update(currentFrame);
-        if(ind.getShootAndReset()){
-            btVector3 pos= ind.rb->getCenterOfMassPosition();
-            shootToPlayer(glm::vec3(pos.getX(),pos.getY()-0.6,pos.getZ()));
-        }
-
 
         /////////////////// PLANE ////////////////////////////////////////////////
         // We render a plane under the objects. We apply the fullcolor shader to the plane, and we do not apply the rotation applied to the other objects.
@@ -529,7 +527,7 @@ int main()
 
         // we assign the value to the uniform variables
         glUniform3fv(pointLightLocation, 1, glm::value_ptr(lightPos0));
-        glUniform3fv(matDiffuseLocation, 1, planeMaterial);
+        glUniform3fv(matDiffuseLocation, 1, planeColor);
         glUniform1f(kdLocation, Kd);
 
 
@@ -671,7 +669,7 @@ int main()
 		glDisable(GL_DEPTH_TEST); // prevents framebuffer rectangle from being discarded
 		glBindTexture(GL_TEXTURE_2D, framebufferTexture[2]);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
-
+        RenderText(text_shader, "FPS: " +std::to_string(fps), 700.0f, 25.0f, .4F, glm::vec3(0.5, 0.8f, 0.2f));
 		// Swap the back buffer with the front buffer
 		glfwSwapBuffers(window);
 
@@ -746,14 +744,13 @@ void PrintCurrentShader(int subroutine, vector<string> *vector)
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode)
 {
     GLuint new_subroutine;
-
+    if(!gameHasStart && key==GLFW_KEY_ENTER && action==GLFW_PRESS){
+        StartGame();
+        return;
+    }
     // if ESC is pressed, we close the application
     if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
-
-    // if P is pressed, we start/stop the animated rotation of models
-    if(key == GLFW_KEY_P && action == GLFW_PRESS)
-        spinning=!spinning;
 
     // if L is pressed, we activate/deactivate wireframe rendering of models
     if(key == GLFW_KEY_L && action == GLFW_PRESS)
@@ -1086,3 +1083,167 @@ void checkForCollision(){
 
     
 }
+
+int SetupFreetype(Shader &text_shader){
+    FT_Library ft;
+    if (FT_Init_FreeType(&ft))
+    {
+        std::cout << "ERROR::FREETYPE: Could not init FreeType Library" << std::endl;
+        return -1;
+    }
+
+    FT_Face face;
+    if (FT_New_Face(ft, "../../fonts/arial.ttf", 0, &face))
+    {
+        std::cout << "ERROR::FREETYPE: Failed to load font" << std::endl;  
+        return -1;
+    }
+
+    FT_Set_Pixel_Sizes(face, 0, 48);  
+    glActiveTexture(GL_TEXTURE0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // disable byte-alignment restriction
+  
+    for (unsigned char c = 0; c < 128; c++)
+    {
+        // load character glyph 
+        if (FT_Load_Char(face, c, FT_LOAD_RENDER))
+        {
+            std::cout << "ERROR::FREETYTPE: Failed to load Glyph" << std::endl;
+            continue;
+        }
+        // generate texture
+        unsigned int texture;
+        glGenTextures(1, &texture);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            GL_RED,
+            face->glyph->bitmap.width,
+            face->glyph->bitmap.rows,
+            0,
+            GL_RED,
+            GL_UNSIGNED_BYTE,
+            face->glyph->bitmap.buffer
+        );
+        // set texture options
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        // now store character for later use
+        Character character = {
+            texture, 
+            glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
+            glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
+            face->glyph->advance.x
+        };
+        Characters.insert(std::pair<char, Character>(c, character));
+    }
+
+    FT_Done_Face(face);
+    FT_Done_FreeType(ft);
+
+    glGenVertexArrays(1, &textVAO);
+    glGenBuffers(1, &textVBO);
+    glBindVertexArray(textVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, textVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);   
+    text_shader.Use();
+    glm::mat4 p2 = glm::ortho(0.0f, float(screenWidth), 0.0f, float(screenHeight));
+    glUniformMatrix4fv(glGetUniformLocation(text_shader.Program, "projection"), 1, GL_FALSE, glm::value_ptr(p2));
+    return 0;
+
+}
+
+void RenderText(Shader &s, std::string text, float x, float y, float scale, glm::vec3 color)
+{
+    // activate corresponding render state	
+    s.Use();
+    glUniform3f(glGetUniformLocation(s.Program, "textColor"), color.x, color.y, color.z);
+    glUniform1i(glGetUniformLocation(s.Program, "text"), 6);
+    glActiveTexture(GL_TEXTURE6);
+    glBindVertexArray(textVAO);
+
+    // iterate through all characters
+    std::string::const_iterator c;
+    for (c = text.begin(); c != text.end(); c++)
+    {
+        Character ch = Characters[*c];
+
+        float xpos = x + ch.Bearing.x * scale;
+        float ypos = y - (ch.Size.y - ch.Bearing.y) * scale;
+
+        float w = ch.Size.x * scale;
+        float h = ch.Size.y * scale;
+        // update VBO for each character
+        float vertices[6][4] = {
+            { xpos,     ypos + h,   0.0f, 0.0f },            
+            { xpos,     ypos,       0.0f, 1.0f },
+            { xpos + w, ypos,       1.0f, 1.0f },
+
+            { xpos,     ypos + h,   0.0f, 0.0f },
+            { xpos + w, ypos,       1.0f, 1.0f },
+            { xpos + w, ypos + h,   1.0f, 0.0f }           
+        };
+        // render glyph texture over quad
+        glBindTexture(GL_TEXTURE_2D, ch.TextureID);
+        // update content of VBO memory
+        glBindBuffer(GL_ARRAY_BUFFER, textVBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices); 
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        // render quad
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        // now advance cursors for next glyph (note that advance is number of 1/64 pixels)
+        x += (ch.Advance >> 6) * scale; // bitshift by 6 to get value in pixels (2^6 = 64)
+    }
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+
+void SetupScene(){
+    Model *cubeModel= new Model("../../models/cube.obj");
+    Model *sphereModel= new Model("../../models/sphere.obj");
+    Model *bunnyModel= new Model("../../models/bunny_lp.obj");
+
+    bulletModel=sphereModel;
+
+    GameObject *sphere= new GameObject(glm::vec3(-3.0f, 0.0f, 0.0f),glm::vec3(0.8,0.8,0.8),glm::vec3(0.0,.0,0.0),sphereModel);
+    GameObject *cube= new GameObject (glm::vec3(0.0f, 3.0f, 0.0f),glm::vec3(1,1,1),glm::vec3(0.0,.0,0.0),cubeModel);
+    GameObject *bunny= new GameObject(glm::vec3(3.0f, 0.0f, 0.0f),glm::vec3(0.3,0.3,0.3),glm::vec3(0.0,.0,0.0),bunnyModel);
+
+    sphere->setColor3(objectColor);
+    cube->setColor3(objectColor);
+    bunny->setColor3(objectColor);  
+
+    cube->addRigidbody(bulletSimulation,SHAPE,2,0.3,0.3);
+    sphere->addRigidbody(bulletSimulation,SPHERE,2,0.3,0.3);
+    bunny->addRigidbody(bulletSimulation,SHAPE,0,0.3,0.3);
+
+    //scene.push_back(plane);
+    scene.push_back(sphere);
+    scene.push_back(cube);
+    scene.push_back(bunny);
+}
+
+void GameOver(){
+    gameHasStart=false;
+    gameOver=true;
+}
+
+void StartGame(){
+    gameHasStart=true;
+    gameOver=false;
+    life=100;
+    score=0;
+    level=0;
+}
+
+
+
+

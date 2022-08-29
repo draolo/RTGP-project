@@ -124,7 +124,7 @@ vec3 DOFCircular(){
     float redChannel   = dot(valR,Kernel0Weights_RealX_ImY);
     float greenChannel = dot(valG,Kernel0Weights_RealX_ImY);
     float blueChannel  = dot(valB,Kernel0Weights_RealX_ImY);
-    return (vec3(redChannel,greenChannel,blueChannel));  
+    return sqrt(vec3(redChannel,greenChannel,blueChannel));  
 }
 
 
@@ -149,11 +149,11 @@ vec3 DOFSquare(){
         valB += multComplex(vec2(realTexel.b, imaginaryTexel.b),c0);
     
     }
-    
-    float redChannel   = dot(valR,Kernel0BracketsRealXY_ImZW.xy);
-    float greenChannel = dot(valG,Kernel0BracketsRealXY_ImZW.xy);
-    float blueChannel  = dot(valB,Kernel0BracketsRealXY_ImZW.xy);
-    return (vec3(redChannel,greenChannel,blueChannel));  
+    vec2 magic=Kernel0BracketsRealXY_ImZW.xy;
+    float redChannel   = dot(valR,magic);
+    float greenChannel = dot(valG,magic);
+    float blueChannel  = dot(valB,magic);
+    return sqrt((vec3(redChannel,greenChannel,blueChannel)));  
 }
 
 void main()

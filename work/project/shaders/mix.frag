@@ -1,7 +1,7 @@
 #version 410 core
 
 #define MAX_OFFSET 0.1
-#define MAX_CONTACT_POINTS 16
+#define MAX_CONTACT_POINTS 100
 #define width 800
 #define heigth 600
 
@@ -26,7 +26,30 @@ uniform int contactPointNumber;
 // texture with the original rendering
 uniform sampler2D screenTexture;
 uniform sampler2D blurTexture;
+uniform sampler2D zmap;
 
+// the "type" of the Subroutine
+subroutine bool mix_model(); //false screentexture, true blurtexture
+
+// Subroutine Uniform (it is conceptually similar to a C pointer function)
+subroutine uniform mix_model Mix_Model;
+
+subroutine(mix_model)
+bool FullBlur(){
+  return false;
+
+}
+
+subroutine(mix_model)
+bool Splash(){
+  return false;
+
+}
+
+subroutine(mix_model)
+bool Distance(){
+  return false;
+}
 
 vec2 getTexelUnit(){
   vec2 unit= vec2(1./width,1./heigth);
