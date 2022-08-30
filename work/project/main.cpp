@@ -128,9 +128,16 @@ struct Character {
     unsigned int Advance;    // Offset to advance to next glyph
 };
 
+enum textPosition{
+    TEXT_ALIGN_LEFT,
+    TEXT_ALIGN_CENTER,
+    TEXT_ALIGN_RIGHT,
+};
+
 std::map<char, Character> Characters;
-void RenderText(Shader &s, std::string text, float x, float y, float scale, glm::vec3 color);
+void RenderText(Shader &s, std::string text, float x, float y, float scale, glm::vec3 color, textPosition alignment=TEXT_ALIGN_LEFT);
 int SetupFreetype(Shader &s);
+void DisplayUI(Shader &text_shader);
 // dimensions of application's window
 GLuint screenWidth = 800, screenHeight = 600;
 
@@ -176,9 +183,13 @@ GLuint textureCube;
 // index of the current shader subroutine (= 0 in the beginning)
 GLuint current_subroutine = 0;
 GLuint blur_subroutine = 0;
+GLuint mix_subroutine = 2;
+
 // a vector for all the shader subroutines names used and swapped in the application
 vector<std::string> shaders;
 vector<std::string> blur_shaders;
+vector<std::string> mix_shaders;
+
 
 // the name of the subroutines are searched in the shaders, and placed in the shaders vector (to allow shaders swapping)
 void SetupShader(int shader_program, vector<std::string> *vec, int startFrom=0);
@@ -189,6 +200,7 @@ void PrintCurrentShader(int subroutine, vector<std::string> *vec);
 // parameters for time computation
 GLfloat deltaTime = 0.0f;
 GLfloat lastFrame = 0.0f;
+int fps;
 
 // we need to store the previous mouse position to calculate the offset with the current frame
 GLfloat lastX, lastY;
@@ -332,6 +344,8 @@ int main()
     // the names are placed in the shaders vector
     SetupShader(basic_shader.Program, &shaders);
     SetupShader(horizontal_blur_shader.Program, &blur_shaders, shaders.size());
+    SetupShader(mix_shader.Program, &mix_shaders);
+
     // we print on console the name of the first subroutine used
     PrintCurrentShader(current_subroutine, &shaders);
     PrintCurrentShader(current_subroutine, &blur_shaders);
@@ -445,7 +459,7 @@ int main()
     
     // we set the maximum delta time for the update of the physical simulation
     GLfloat maxSecPerFrame = 1.0f / 60.0f;
-
+    //glfwSwapInterval(0); //remove fps limit 
     // Rendering loop: this code is executed at each frame
     while(!glfwWindowShouldClose(window))
     {
@@ -462,7 +476,7 @@ int main()
         GLfloat currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
-        int fps= 1.0/deltaTime;
+        fps= 1.0/deltaTime;
         // Check is an I/O event is happening
         glfwPollEvents();
         // we apply FPS camera movements
@@ -629,7 +643,7 @@ int main()
         glBindFramebuffer(GL_FRAMEBUFFER,FBO[2]);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         vertical_blur_shader.Use();
-        index = glGetSubroutineIndex(horizontal_blur_shader.Program, GL_FRAGMENT_SHADER, blur_shaders[blur_subroutine].c_str());
+        index = glGetSubroutineIndex(vertical_blur_shader.Program, GL_FRAGMENT_SHADER, blur_shaders[blur_subroutine].c_str());
         // we activate the subroutine using the index (this is where shaders swapping happens)
         glUniformSubroutinesuiv( GL_FRAGMENT_SHADER, 1, &index);
         glUniform1i(glGetUniformLocation(vertical_blur_shader.Program, "screenTexture"), 2);
@@ -646,6 +660,14 @@ int main()
     	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         mix_shader.Use();
+        if(gameHasStart){
+            index = glGetSubroutineIndex(mix_shader.Program, GL_FRAGMENT_SHADER, mix_shaders[mix_subroutine].c_str());
+            glUniformSubroutinesuiv( GL_FRAGMENT_SHADER, 1, &index);
+        }
+        else{
+            index = glGetSubroutineIndex(mix_shader.Program, GL_FRAGMENT_SHADER, "FullBlur");
+            glUniformSubroutinesuiv( GL_FRAGMENT_SHADER, 1, &index);
+        }
         glUniform1i(glGetUniformLocation(mix_shader.Program, "screenTexture"), 1);
         glUniform1i(glGetUniformLocation(mix_shader.Program, "blurTexture"), 2);
         GLint frequencyLocation = glGetUniformLocation(mix_shader.Program, "frequency");
@@ -669,7 +691,7 @@ int main()
 		glDisable(GL_DEPTH_TEST); // prevents framebuffer rectangle from being discarded
 		glBindTexture(GL_TEXTURE_2D, framebufferTexture[2]);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
-        RenderText(text_shader, "FPS: " +std::to_string(fps), 700.0f, 25.0f, .4F, glm::vec3(0.5, 0.8f, 0.2f));
+        DisplayUI(text_shader);
 		// Swap the back buffer with the front buffer
 		glfwSwapBuffers(window);
 
@@ -755,7 +777,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     // if L is pressed, we activate/deactivate wireframe rendering of models
     if(key == GLFW_KEY_L && action == GLFW_PRESS)
         wireframe=!wireframe;
-    if(key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+    if(key == GLFW_KEY_SPACE && action == GLFW_PRESS && gameHasStart)
     {
         //shootToPlayer(glm::vec3(2.,2.,2.));
         shoot();
@@ -786,7 +808,14 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             }
         }
     }
-
+    if((key >= GLFW_KEY_KP_1 && key <= GLFW_KEY_KP_9) && action == GLFW_PRESS)
+    {
+        new_subroutine=key-GLFW_KEY_KP_1;
+        if(new_subroutine<mix_shaders.size()){
+            cout<<mix_shaders[new_subroutine]<<endl;
+            mix_subroutine=new_subroutine;
+        }
+    }
     // we keep trace of the pressed keys
     // with this method, we can manage 2 keys pressed at the same time:
     // many I/O managers often consider only 1 key pressed at the time (the first pressed, until it is released)
@@ -1160,7 +1189,7 @@ int SetupFreetype(Shader &text_shader){
 
 }
 
-void RenderText(Shader &s, std::string text, float x, float y, float scale, glm::vec3 color)
+void RenderText(Shader &s, std::string text, float x, float y, float scale, glm::vec3 color, textPosition alignment)
 {
     // activate corresponding render state	
     s.Use();
@@ -1171,6 +1200,25 @@ void RenderText(Shader &s, std::string text, float x, float y, float scale, glm:
 
     // iterate through all characters
     std::string::const_iterator c;
+    float l=0;
+    if(alignment!=TEXT_ALIGN_LEFT){
+        for (c = text.begin(); c != text.end(); c++)
+        {
+            Character ch = Characters[*c];
+            l += (ch.Advance >> 6) * scale; // bitshift by 6 to get value in pixels (2^6 = 64)
+        }
+        switch (alignment)
+        {
+        case TEXT_ALIGN_CENTER:
+            x=x-l/2;
+            break;
+        case TEXT_ALIGN_RIGHT:
+            x=x-l;
+        default:
+            break;
+        }
+    }
+
     for (c = text.begin(); c != text.end(); c++)
     {
         Character ch = Characters[*c];
@@ -1242,6 +1290,22 @@ void StartGame(){
     life=100;
     score=0;
     level=0;
+}
+
+void DisplayUI(Shader &text_shader){
+    if(!gameHasStart){
+        if(gameOver){
+            RenderText(text_shader, "GAME OVER", 400.0f, 350.0f, 2.0f, glm::vec3(1, 0.15f, 0.2f), TEXT_ALIGN_CENTER);
+            RenderText(text_shader, "score:", 400.0f, 300.0f, .7f, glm::vec3(.15, .2f, 0.92f), TEXT_ALIGN_CENTER);
+            RenderText(text_shader, std::to_string(score), 400.0f, 225.0f, 2.0f, glm::vec3(.15, .2f, 0.92f), TEXT_ALIGN_CENTER);
+        }
+        RenderText(text_shader, "Press enter to start the game!", 400.0f, 150.0f, 1.0f, glm::vec3(1, .8f, 0.2f), TEXT_ALIGN_CENTER);
+    }else{
+            RenderText(text_shader, "LIFE: "+std::to_string(life), 780.0f, 550.0f, .7f, glm::vec3(1, 0.15f, 0.2f), TEXT_ALIGN_RIGHT);
+            RenderText(text_shader, std::to_string(score), 20.0f, 550.0f, .7f, glm::vec3(1, .8f, 0.2f), TEXT_ALIGN_LEFT);
+    }
+    RenderText(text_shader, "FPS: " +std::to_string(fps), 700.0f, 25.0f, .4F, glm::vec3(0.5, 0.8f, 0.2f));
+
 }
 
 

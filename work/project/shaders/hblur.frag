@@ -1,4 +1,4 @@
-#version 410 core
+#version 420 core
 
 #define BLUR_SIZE 15
 #define width 800

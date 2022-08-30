@@ -1,4 +1,4 @@
-#version 410 core
+#version 420 core
 
 #define MAX_OFFSET 0.1
 #define MAX_CONTACT_POINTS 100
@@ -34,22 +34,6 @@ subroutine bool mix_model(); //false screentexture, true blurtexture
 // Subroutine Uniform (it is conceptually similar to a C pointer function)
 subroutine uniform mix_model Mix_Model;
 
-subroutine(mix_model)
-bool FullBlur(){
-  return false;
-
-}
-
-subroutine(mix_model)
-bool Splash(){
-  return false;
-
-}
-
-subroutine(mix_model)
-bool Distance(){
-  return false;
-}
 
 vec2 getTexelUnit(){
   vec2 unit= vec2(1./width,1./heigth);
@@ -189,8 +173,15 @@ int TurbulenceAAstep(float power, vec2 pos,int t)
   return 1;
 }
 
-void main()
-{
+
+subroutine(mix_model)
+bool FullBlur(){
+  return true;
+
+}
+
+subroutine(mix_model)
+bool Splash(){
     int impacted=0;
     int n=1;
     for(int i=0;i<contactPointNumber;i++){
@@ -209,11 +200,26 @@ void main()
       float noise= snoise(vec3(offset*1.7,0))*MAX_OFFSET;
       
       if((length(connecting)<noise+0.15)){
-        impacted+=TurbulenceAAstep(powers[i],normalizedContactPoints[i],n);
+        if(TurbulenceAAstep(powers[i],normalizedContactPoints[i],n)!=0){
+          return true;
+        }
         n++;
       }
     }
-    if(impacted>0){
+  return false;
+
+}
+
+subroutine(mix_model)
+bool Distance(){
+  //TODO
+  return false;
+}
+
+void main()
+{
+
+    if(Mix_Model()){
         vec4 red= vec4(1.,0.,0.,1.);
         FragColor=mix(red,texture(blurTexture, texCoords.st),1);
     }else{
