@@ -163,11 +163,8 @@ public:
         this->collisionShapes.remove(body->getCollisionShape());
         if (body!=nullptr && body->getMotionState()){
             this->dynamicsWorld->removeRigidBody(body);
-            //delete (body->getMotionState());
         }
         this->dynamicsWorld->removeRigidBody(body);
-        delete body;
-        //delete obj;
     }
 
     //////////////////////////////////////////

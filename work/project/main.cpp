@@ -134,6 +134,15 @@ enum textPosition{
     TEXT_ALIGN_RIGHT,
 };
 
+enum modelsIndex{
+    CUBE_MODEL=0,
+    SPHERE_MODEL=1,
+    BUNNY_MODEL=2,
+    NEW_JERSEY_MODEL,
+    DRONE_MODEL=0,
+    BULLET_MODEL=1
+};
+
 std::map<char, Character> Characters;
 void RenderText(Shader &s, std::string text, float x, float y, float scale, glm::vec3 color, textPosition alignment=TEXT_ALIGN_LEFT);
 int SetupFreetype(Shader &s);
@@ -237,7 +246,6 @@ GLfloat objectColor[] = {0.5,0.0,0.0};
 GLfloat bullet_color[] = {1.0f,1.0f,0.0f};
 // dimension of the bullets (global because we need it also in the keyboard callback)
 glm::vec3 bullet_size = glm::vec3(0.2f, 0.2f, 0.2f);
-Model *bulletModel;
 
 // we set the maximum delta time for the update of the physical simulation
 GLfloat maxSecPerFrame = 1.0f / 60.0f;
@@ -260,7 +268,9 @@ float rectangleVertices[] =
 };
 
 vector<GameObject*> scene;
+vector<Model*> models(10);
 void SetupScene();
+void LoadModels();
 
 bool gameHasStart=false;
 bool gameOver=false;
@@ -268,8 +278,11 @@ int life;
 int score;
 int level;
 
+vector<enemiesAI*> enemies;
 void StartGame();
 void GameOver();
+void SpawnEnemy(glm::vec3 pos);
+void UpdateEnemies(int frame);
 
 /////////////////// MAIN function ///////////////////////
 int main()
@@ -409,7 +422,9 @@ int main()
             return -1;
         }
     }
+    cout<<"all ok"<<endl;
 
+    LoadModels();
     SetupScene();
     
     // we load the cube map (we pass the path to the folder containing the 6 views)
@@ -417,8 +432,6 @@ int main()
 
 // we load the model(s) (code of Model class is in include/utils/model_v1.h)
      // we load the model(s) (code of Model class is in include/utils/model_v1.h)
-    Model skyboxModel("../../models/cube.obj"); // used for the environment map
-
 
 
     // Projection matrix: FOV angle, aspect ratio, near and far planes
@@ -435,17 +448,10 @@ int main()
     glm::vec3 plane_pos = glm::vec3(0.0f, -1.0f, 0.0f);
     glm::vec3 plane_size = glm::vec3(200.0f, 0.1f, 200.0f);
     glm::vec3 plane_rot = glm::vec3(0.0f, 0.0f, 0.0f);
-    GameObject plane(plane_pos,plane_size, plane_rot, &skyboxModel);
+    GameObject plane(plane_pos,plane_size, plane_rot, models[CUBE_MODEL]);
     plane.setColor3(planeColor); 
     plane.addRigidbody(bulletSimulation,BOX,0,0.3,0.3);
 
-    enemiesAI ind(glm::vec3(2.0f, 2.0f, 2.0f),glm::vec3(.2,.2,.2),glm::vec3(0.0,.0,0.0),&skyboxModel, &camera,lastFrame);
-    ind.setColor3(objectColor); 
-    scene.push_back(&ind);
-    ind.addRigidbody(bulletSimulation,SPHERE,0.5,0.8,0.8);
-    ind.rb->setLinearFactor(btVector3(1,0,1)); //enemies could not change altitude
-    ind.rb->setAngularFactor(btVector3(0,1,0));
-    ind.rb->setDamping(0.5,0.5);
     //set up the hit manager
     for(int i=0;i<MAX_HIT;i++){
         powers[i]=0.0f;
@@ -456,7 +462,6 @@ int main()
         return -1;
     }
 
-    
     // we set the maximum delta time for the update of the physical simulation
     GLfloat maxSecPerFrame = 1.0f / 60.0f;
     //glfwSwapInterval(0); //remove fps limit 
@@ -497,28 +502,26 @@ int main()
 
         if(gameHasStart){
             update_hits(deltaTime);
-            set<btRigidBody*> toRem;
-            for (auto gameObject : scene) // access by reference to avoid copying
+            set<GameObject*> toRem;
+            for (auto gameObject : scene) 
             {  
                 if(!gameObject->CheckLife(currentFrame)){
-                    toRem.insert(gameObject->rb);
+                    toRem.insert(gameObject);
+
                 }
             }
             for(auto obj:toRem){
-            bulletSimulation.deleteCollisionObject(obj);
-            scene.erase(remove(scene.begin(),scene.end(),(GameObject*)obj->getUserPointer()),scene.end());
-            delete obj;
+                bulletSimulation.deleteCollisionObject(obj->rb);
+                scene.erase(remove(scene.begin(),scene.end(),obj),scene.end());
+                delete obj->rb;
+                delete obj;
             }   
 
             // we update the physics simulation. We must pass the deltatime to be used for the update of the physical state of the scene. The default value for Bullet is 60 Hz, for lesser deltatime the library interpolates and does not calculate the simulation. In this example, we use deltatime from the last rendering: if it is < 1\60 sec, than we use it, otherwise we use the deltatime we have set above
             // we also set the max number of substeps to consider for the simulation (=10)
             bulletSimulation.dynamicsWorld->stepSimulation((deltaTime < maxSecPerFrame ? deltaTime : maxSecPerFrame),10);
             checkForCollision();
-            ind.Update(currentFrame);
-            if(ind.getShootAndReset()){
-                btVector3 pos= ind.rb->getCenterOfMassPosition();
-                shootToPlayer(glm::vec3(pos.getX(),pos.getY()-0.6,pos.getZ()));
-            }
+            UpdateEnemies(currentFrame);
         }
 
         /////////////////// PLANE ////////////////////////////////////////////////
@@ -597,7 +600,7 @@ int main()
         glUniform1i(textureLocation, 0);
 
         // we render the cube with the environment map
-        skyboxModel.Draw();
+        models[CUBE_MODEL]->Draw();
         // we set again the depth test to the default operation for the next frame
         glDepthFunc(GL_LESS);
 
@@ -985,7 +988,7 @@ void shoot(){
     // matrix for the inverse matrix of view and projection
     glm::mat4 unproject;
     // we create a Rigid Body with mass = 1
-    GameObject *bullet=new GameObject(camera.Position()+ (camera.Front*2.0f),bullet_size,rot,bulletModel);
+    GameObject *bullet=new GameObject(camera.Position()+ (camera.Front*2.0f),bullet_size,rot,models[BULLET_MODEL]);
     bullet->setColor3(bullet_color);
     bullet->addRigidbody(bulletSimulation,SPHERE,.5f,0.3f,0.3f);
     //bullet->rb->setCollisionFlags(btCollisionObject::CF_NO_CONTACT_RESPONSE);
@@ -1029,7 +1032,7 @@ void shootToPlayer(glm::vec3 from){
     // matrix for the inverse matrix of view and projection
     glm::mat4 unproject;
     // we create a Rigid Body with mass = 1
-    Bullet *bullet=new Bullet(from,bullet_size,rot,bulletModel);
+    Bullet *bullet=new Bullet(from,bullet_size,rot,models[BULLET_MODEL]);
     bullet->setColor3(bullet_color);
     bullet->addRigidbody(bulletSimulation,SPHERE,.5f,0.3f,0.3f);
     //bullet->rb->setCollisionFlags(btCollisionObject::CF_NO_CONTACT_RESPONSE);
@@ -1253,17 +1256,22 @@ void RenderText(Shader &s, std::string text, float x, float y, float scale, glm:
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-
-void SetupScene(){
+void LoadModels(){
     Model *cubeModel= new Model("../../models/cube.obj");
     Model *sphereModel= new Model("../../models/sphere.obj");
     Model *bunnyModel= new Model("../../models/bunny_lp.obj");
+    models.at(CUBE_MODEL)=cubeModel;
+    cout<<"all ok 2"<<endl;
+    models[SPHERE_MODEL]=sphereModel;
+    models[BUNNY_MODEL]=bunnyModel;
 
-    bulletModel=sphereModel;
+}
 
-    GameObject *sphere= new GameObject(glm::vec3(-3.0f, 0.0f, 0.0f),glm::vec3(0.8,0.8,0.8),glm::vec3(0.0,.0,0.0),sphereModel);
-    GameObject *cube= new GameObject (glm::vec3(0.0f, 3.0f, 0.0f),glm::vec3(1,1,1),glm::vec3(0.0,.0,0.0),cubeModel);
-    GameObject *bunny= new GameObject(glm::vec3(3.0f, 0.0f, 0.0f),glm::vec3(0.3,0.3,0.3),glm::vec3(0.0,.0,0.0),bunnyModel);
+void SetupScene(){
+
+    GameObject *sphere= new GameObject(glm::vec3(-3.0f, 0.0f, 0.0f),glm::vec3(0.8,0.8,0.8),glm::vec3(0.0,.0,0.0),models[SPHERE_MODEL]);
+    GameObject *cube= new GameObject (glm::vec3(0.0f, 3.0f, 0.0f),glm::vec3(1,1,1),glm::vec3(0.0,.0,0.0),models[CUBE_MODEL]);
+    GameObject *bunny= new GameObject(glm::vec3(3.0f, 0.0f, 0.0f),glm::vec3(0.3,0.3,0.3),glm::vec3(0.0,.0,0.0),models[BUNNY_MODEL]);
 
     sphere->setColor3(objectColor);
     cube->setColor3(objectColor);
@@ -1290,6 +1298,28 @@ void StartGame(){
     life=100;
     score=0;
     level=0;
+    SpawnEnemy(glm::vec3(2.,2.,2.));
+}
+
+void SpawnEnemy(glm::vec3 pos){
+    enemiesAI *ind= new enemiesAI(pos,glm::vec3(.2,.2,.2),glm::vec3(0.0,.0,0.0),models[DRONE_MODEL], &camera);
+    ind->setColor3(objectColor); 
+    scene.push_back(ind);
+    ind->addRigidbody(bulletSimulation,SPHERE,0.5,0.8,0.8);
+    ind->rb->setLinearFactor(btVector3(1,0,1)); //enemies could not change altitude
+    ind->rb->setAngularFactor(btVector3(0,1,0));
+    ind->rb->setDamping(0.5,0.5);
+    enemies.push_back(ind);
+}
+
+void UpdateEnemies(int frame){
+    for(auto ind:enemies){
+        ind->Update(frame);
+        if(ind->getShootAndReset()){
+            btVector3 pos= ind->rb->getCenterOfMassPosition();
+            shootToPlayer(glm::vec3(pos.getX(),pos.getY()-0.6,pos.getZ()));
+        }
+    }
 }
 
 void DisplayUI(Shader &text_shader){
@@ -1302,6 +1332,7 @@ void DisplayUI(Shader &text_shader){
         RenderText(text_shader, "Press enter to start the game!", 400.0f, 150.0f, 1.0f, glm::vec3(1, .8f, 0.2f), TEXT_ALIGN_CENTER);
     }else{
             RenderText(text_shader, "LIFE: "+std::to_string(life), 780.0f, 550.0f, .7f, glm::vec3(1, 0.15f, 0.2f), TEXT_ALIGN_RIGHT);
+            RenderText(text_shader, "LEVEL "+std::to_string(level+1), 400.0f, 550.0f, .7f, glm::vec3(1, .8f, 0.9f), TEXT_ALIGN_CENTER);
             RenderText(text_shader, std::to_string(score), 20.0f, 550.0f, .7f, glm::vec3(1, .8f, 0.2f), TEXT_ALIGN_LEFT);
     }
     RenderText(text_shader, "FPS: " +std::to_string(fps), 700.0f, 25.0f, .4F, glm::vec3(0.5, 0.8f, 0.2f));
