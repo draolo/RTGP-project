@@ -161,10 +161,12 @@ public:
 
     void deleteCollisionObject(btRigidBody* body){
         this->collisionShapes.remove(body->getCollisionShape());
-        if (body!=nullptr && body->getMotionState()){
-            this->dynamicsWorld->removeRigidBody(body);
+        if (body && body->getMotionState())
+        {
+            delete body->getMotionState();
         }
-        this->dynamicsWorld->removeRigidBody(body);
+        this->dynamicsWorld->removeCollisionObject( body );
+        delete body;
     }
 
     //////////////////////////////////////////

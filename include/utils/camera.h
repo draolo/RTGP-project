@@ -79,10 +79,12 @@ public:
         if(rb==nullptr){
             return position;
         }
-        btTransform t;
-        rb->getMotionState()->getWorldTransform(t);
-        btVector3 offset= t.getOrigin();
-        return glm::vec3(offset.getX(),offset.getY(),offset.getZ());
+        //btTransform t;
+        //rb->getMotionState()->getWorldTransform(t);
+        //btVector3 offset= t.getOrigin();
+        //return glm::vec3(offset.getX(),offset.getY(),offset.getZ());
+        btVector3 pos= rb->getCenterOfMassPosition();
+        return glm::vec3(pos.getX(),pos.getY(),pos.getZ());
 
     }
 

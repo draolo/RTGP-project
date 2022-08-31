@@ -62,10 +62,11 @@ positive Z axis points "outside" the screen
 
 /*
     levels
-    0->1: 5
-    1->2: 10
-    2->3: 15
-    3->4: 25
+    0->1: 5e    25pt    (5pte) 
+    1->2: 10e   225pt   (20pte)
+    2->3: 15e   900pt   (45pte)
+    3->4: 25e   2900pt  (80pte)
+    4->                 (125pte)
 */
 
 // Std. Includes
@@ -163,7 +164,9 @@ GLfloat harmonics = 4.0;
 
 GLfloat powers[MAX_HIT];
 GLfloat hitPoints[2*MAX_HIT];
+GLfloat lastHit;
 int hit_index=0;
+float hitRecoverTime=5.5;
 
 // we initialize an array of booleans for each keybord key
 bool keys[1024];
@@ -237,6 +240,7 @@ GLfloat Ka = 0.1f;
 
 // boolean to activate/deactivate wireframe rendering
 GLboolean wireframe = GL_FALSE;
+bool pinpoint=false;
 
 
 // color to be passed as uniform to the shader of the plane
@@ -270,6 +274,7 @@ float rectangleVertices[] =
 vector<GameObject*> scene;
 vector<Model*> models(10);
 void SetupScene();
+void CleanScene();
 void LoadModels();
 
 bool gameHasStart=false;
@@ -277,12 +282,14 @@ bool gameOver=false;
 int life;
 int score;
 int level;
+const int levelReq[4]={25,225,900,2900};
 
 vector<enemiesAI*> enemies;
 void StartGame();
 void GameOver();
 void SpawnEnemy(glm::vec3 pos);
 void UpdateEnemies(int frame);
+void UpdateLevel();
 
 /////////////////// MAIN function ///////////////////////
 int main()
@@ -452,11 +459,6 @@ int main()
     plane.setColor3(planeColor); 
     plane.addRigidbody(bulletSimulation,BOX,0,0.3,0.3);
 
-    //set up the hit manager
-    for(int i=0;i<MAX_HIT;i++){
-        powers[i]=0.0f;
-    }
-
 
     if(SetupFreetype(text_shader)==-1){
         return -1;
@@ -507,13 +509,11 @@ int main()
             {  
                 if(!gameObject->CheckLife(currentFrame)){
                     toRem.insert(gameObject);
-
                 }
             }
             for(auto obj:toRem){
                 bulletSimulation.deleteCollisionObject(obj->rb);
                 scene.erase(remove(scene.begin(),scene.end(),obj),scene.end());
-                delete obj->rb;
                 delete obj;
             }   
 
@@ -521,6 +521,7 @@ int main()
             // we also set the max number of substeps to consider for the simulation (=10)
             bulletSimulation.dynamicsWorld->stepSimulation((deltaTime < maxSecPerFrame ? deltaTime : maxSecPerFrame),10);
             checkForCollision();
+            UpdateLevel();
             UpdateEnemies(currentFrame);
         }
 
@@ -780,6 +781,9 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     // if L is pressed, we activate/deactivate wireframe rendering of models
     if(key == GLFW_KEY_L && action == GLFW_PRESS)
         wireframe=!wireframe;
+
+    if(key == GLFW_KEY_P && action == GLFW_PRESS)
+        pinpoint=!pinpoint;
     if(key == GLFW_KEY_SPACE && action == GLFW_PRESS && gameHasStart)
     {
         //shootToPlayer(glm::vec3(2.,2.,2.));
@@ -894,15 +898,18 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
 
 void update_hits(float deltaTime){
-    power-=deltaTime*0.5*power;
-    if(power<0.02){
-            power=0;
-    }
-    for(int i=0; i<MAX_HIT;i++){
-        if(powers[i]>power){
-            powers[i]=power;
+    if(lastFrame-lastHit>hitRecoverTime){
+        power-=deltaTime*0.5*power;
+        if(power<0.02){
+                power=0;
+        }
+        for(int i=0; i<MAX_HIT;i++){
+            if(powers[i]>power){
+                powers[i]=power;
+            }
         }
     }
+    life= 100-power*10;
 }
 
 bool add_hit(float normx, float normy){
@@ -911,8 +918,8 @@ bool add_hit(float normx, float normy){
     }
     hitPoints[2*hit_index]=normx;
     hitPoints[2*hit_index+1]=normy;
-    powers[hit_index]=hitDamage;
-    power=hitDamage;
+    power=(100.0-life)/10.0;
+    powers[hit_index]=power;
     hit_index=(hit_index+1)%MAX_HIT;
     return true;
 }
@@ -997,8 +1004,13 @@ void shoot(){
     scene.push_back(bullet); 
     // we must retro-project the coordinates of the mouse pointer, in order to have a point in world coordinate to be used to determine a vector from the camera (= direction and orientation of the bullet)
     // we convert the cursor position (taken from the mouse callback) from Viewport Coordinates to Normalized Device Coordinate (= [-1,1] in both coordinates)
-    shoot.x = (cursorX/screenWidth) * 2.0f - 1.0f;
-    shoot.y = -(cursorY/screenHeight) * 2.0f + 1.0f; // Viewport Y coordinates are from top-left corner to the bottom
+    if(!pinpoint){
+        shoot.x = (cursorX/screenWidth) * 2.0f - 1.0f;
+        shoot.y = -(cursorY/screenHeight) * 2.0f + 1.0f; // Viewport Y coordinates are from top-left corner to the bottom
+    }else{
+        shoot.x=0;
+        shoot.y=0;
+    }
     // we need a 3D point, so we set a minimum value to the depth with respect to camera position
     shoot.z = 1.0f;
     // w = 1.0 because we are using homogeneous coordinates
@@ -1067,17 +1079,60 @@ float clamp(float val, float min, float max){
 }
 
 void processhit(glm::vec3 from_pos){
+    life-=20;
+    lastHit=lastFrame;
+    if(life<=0){
+        GameOver();
+        return;
+    }
     glm::vec4 dir= projection*view*glm::vec4(from_pos,1.);
     glm::vec3 ndc = glm::vec3(dir) / dir.w;
     glm::vec2 viewportCoord = glm::vec2(ndc) * 0.5f + 0.5f; //ndc is -1 to 1 in GL. scale for 0 to 1
     viewportCoord.x=clamp(viewportCoord.x,0.,1.);
     viewportCoord.y=clamp(viewportCoord.y,0.,1.);
     add_hit(viewportCoord.x,viewportCoord.y);
-    
+
     /*only border effect
     glm::vec2 dir2d= (glm::normalize(glm::vec2(dir.x,dir.z))*0.5f)+0.5f;
     add_hit(dir2d.x,dir2d.y);
     */
+}
+
+void UpdateScore(){
+    score+=5*(level+1)*(level+1);
+}
+
+void ProcessBulletHit(btCollisionObject *bullet, btCollisionObject *other){
+    GameObject* bulletGameobject = static_cast<GameObject*>(bullet->getUserPointer());
+    GameObject* otherGameobject = static_cast<GameObject*>(other->getUserPointer());
+    switch (other->getUserIndex())
+    {
+        case 2:
+            if(bulletGameobject->active){
+                Bullet* b= static_cast<Bullet*>(bulletGameobject);
+                processhit(b->shoot_pos);
+            }
+            bulletGameobject->Die(lastFrame);
+            break;
+        case 3:
+            if(bulletGameobject->active){
+                UpdateScore();
+            }
+            bulletGameobject->Die(lastFrame+0.2);
+            break;
+        default:
+            bulletGameobject->Die(lastFrame+0.2);
+            break;
+    }
+}
+
+void CleanScene(){
+    for(auto gameObject: scene){
+        bulletSimulation.deleteCollisionObject(gameObject->rb);
+        delete gameObject;
+    }
+    scene.clear();
+    enemies.clear();
 }
 
 void checkForCollision(){
@@ -1092,24 +1147,10 @@ void checkForCollision(){
         GameObject* gameObjA = static_cast<GameObject*>(obA->getUserPointer());
         GameObject* gameObjB = static_cast<GameObject*>(obB->getUserPointer());
         if(obA->getUserIndex()==1){
-            if(obB->getUserIndex()==2){
-                Bullet* b= static_cast<Bullet*>(gameObjA);
-                if(b->active){
-                    processhit(b->shoot_pos);
-                   gameObjA->Die(lastFrame);//immediate die if hit the player to avoid massive knockback
-                }
-            }
-            gameObjA->Die(lastFrame+0.2);
+            ProcessBulletHit(obA,obB);
         }
-        if(obB->getUserIndex()==1){
-            if(obA->getUserIndex()==2){
-                Bullet* b= static_cast<Bullet*>(gameObjB);
-                if(b->active){
-                    processhit(b->shoot_pos);
-                    gameObjB->Die(lastFrame);
-                }
-            }
-            gameObjB->Die(lastFrame+0.2);
+        else if(obB->getUserIndex()==1){
+            ProcessBulletHit(obB,obA);
         }
     }
 
@@ -1293,8 +1334,19 @@ void GameOver(){
 }
 
 void StartGame(){
+    
+    bulletSimulation.deleteCollisionObject(camera.rb);
+    CleanScene();
+    SetupScene();
+    //set up the hit manager
+    for(int i=0;i<MAX_HIT;i++){
+        powers[i]=0.0f;
+    }
+    int hit_index=0;
+    camera.addRigidbody(bulletSimulation,SPHERE,5,0.,.0);
     gameHasStart=true;
     gameOver=false;
+    power=0;
     life=100;
     score=0;
     level=0;
@@ -1305,11 +1357,23 @@ void SpawnEnemy(glm::vec3 pos){
     enemiesAI *ind= new enemiesAI(pos,glm::vec3(.2,.2,.2),glm::vec3(0.0,.0,0.0),models[DRONE_MODEL], &camera);
     ind->setColor3(objectColor); 
     scene.push_back(ind);
-    ind->addRigidbody(bulletSimulation,SPHERE,0.5,0.8,0.8);
+    ind->addRigidbody(bulletSimulation,BOX,0.5,0.8,0.8);
     ind->rb->setLinearFactor(btVector3(1,0,1)); //enemies could not change altitude
     ind->rb->setAngularFactor(btVector3(0,1,0));
     ind->rb->setDamping(0.5,0.5);
+    ind->rb->setUserIndex(3);
+    ind->SetStage(level);
     enemies.push_back(ind);
+}
+
+void UpdateLevel(){
+    if(level<4&&score>levelReq[level]){
+        level++;
+        for(auto ind:enemies){
+            ind->SetStage(level);
+        }
+        SpawnEnemy(glm::vec3(2.0,2.0,2.0));
+    }
 }
 
 void UpdateEnemies(int frame){
