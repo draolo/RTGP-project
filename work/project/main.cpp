@@ -47,7 +47,8 @@ positive Z axis points "outside" the screen
     TEXTURE 1: BASIC RENDER
     TEXTURE 2: OPERATIVE/MIDDLE TEXTURES
     TEXTURE 3: IMMAGINARY RENDER
-    TEXTURE 4: TEXT FONT    
+    TEXTURE 5: DEPTH_MAP
+    TEXTURE 6: TEXT FONT    
 */
 
 /*
@@ -302,7 +303,7 @@ int main()
   // N.B.) creating GLAD code to load extensions, try to take into account the specifications and any extensions you want to use,
   // in relation also to the values indicated in these GLFW commands
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
   // we set if the window is resizable
@@ -429,6 +430,21 @@ int main()
             return -1;
         }
     }
+
+    GLuint depthMap;
+    glGenTextures(1, &depthMap);
+    glBindTexture(GL_TEXTURE_2D, depthMap);
+    // in the texture, we will save only the depth data of the fragments. Thus, we specify that we need to render only depth in the first rendering step
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    // we set to clamp the uv coordinates outside [0,1] to the color of the border
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glBindFramebuffer(GL_FRAMEBUFFER, FBO[0]);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
     cout<<"all ok"<<endl;
 
     LoadModels();
@@ -672,8 +688,13 @@ int main()
             index = glGetSubroutineIndex(mix_shader.Program, GL_FRAGMENT_SHADER, "FullBlur");
             glUniformSubroutinesuiv( GL_FRAGMENT_SHADER, 1, &index);
         }
+
         glUniform1i(glGetUniformLocation(mix_shader.Program, "screenTexture"), 1);
         glUniform1i(glGetUniformLocation(mix_shader.Program, "blurTexture"), 2);
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_2D, depthMap);
+        GLint depthLocation = glGetUniformLocation(mix_shader.Program, "zmap");
+        glUniform1i(depthLocation, 5);
         GLint frequencyLocation = glGetUniformLocation(mix_shader.Program, "frequency");
         GLint hitPointNumberLocation = glGetUniformLocation(mix_shader.Program, "contactPointNumber");
         GLint hitPointLocation = glGetUniformLocation(mix_shader.Program, "normalizedContactPoints");
@@ -683,12 +704,12 @@ int main()
         GLint harmonicsLocation = glGetUniformLocation(mix_shader.Program, "harmonics");
 
         // we assign the value to the uniform variable
-        glUniform1i(hitPointNumberLocation, MAX_HIT);
+        glUniform1i(hitPointNumberLocation, hit_index);
         glUniform1f(frequencyLocation, frequency);
         glUniform1fv(powersLocation,MAX_HIT, powers);
         glUniform2fv(hitPointLocation,MAX_HIT, hitPoints);
         glUniform1f(harmonicsLocation, harmonics);
-        
+        glUniform1i(glGetUniformLocation(mix_shader.Program, "life"), life);
         // Draw the framebuffer rectangle
 		glActiveTexture(GL_TEXTURE2);
 		glBindVertexArray(rectVAO);
@@ -775,15 +796,23 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         return;
     }
     // if ESC is pressed, we close the application
-    if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+    if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS){
         glfwSetWindowShouldClose(window, GL_TRUE);
-
+    }
     // if L is pressed, we activate/deactivate wireframe rendering of models
-    if(key == GLFW_KEY_L && action == GLFW_PRESS)
+    if(key == GLFW_KEY_L && action == GLFW_PRESS){
         wireframe=!wireframe;
-
-    if(key == GLFW_KEY_P && action == GLFW_PRESS)
+    }
+    if(key == GLFW_KEY_P && action == GLFW_PRESS){
         pinpoint=!pinpoint;
+    }
+    if(key == GLFW_KEY_KP_ADD && action == GLFW_PRESS){
+        life++;
+    }
+    if(key == GLFW_KEY_KP_SUBTRACT && action == GLFW_PRESS){
+        life--;
+        lastHit=lastFrame;
+    }
     if(key == GLFW_KEY_SPACE && action == GLFW_PRESS && gameHasStart)
     {
         //shootToPlayer(glm::vec3(2.,2.,2.));
@@ -898,6 +927,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
 
 void update_hits(float deltaTime){
+    power = (100.0-life)/10.0;
     if(lastFrame-lastHit>hitRecoverTime){
         power-=deltaTime*0.5*power;
         if(power<0.02){

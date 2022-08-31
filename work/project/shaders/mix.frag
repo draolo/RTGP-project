@@ -19,6 +19,7 @@ uniform vec2 normalizedContactPoints[MAX_CONTACT_POINTS];
 uniform float powers[MAX_CONTACT_POINTS];
 
 uniform int contactPointNumber;
+uniform int life;
 
 //uniform int width;
 //uniform float heigth;
@@ -212,8 +213,9 @@ bool Splash(){
 
 subroutine(mix_model)
 bool Distance(){
-  //TODO
-  return false;
+  float depth=((texture(zmap, texCoords.st).r)-.975)*40.;
+  float deathZone= float(life)/100.0;
+  return depth>deathZone;
 }
 
 void main()
@@ -223,6 +225,7 @@ void main()
         vec4 red= vec4(1.,0.,0.,1.);
         FragColor=mix(red,texture(blurTexture, texCoords.st),1);
     }else{
+        //FragColor=vec4(depth,depth,depth,1);
         FragColor=texture(screenTexture, texCoords.st);
     }
 }
