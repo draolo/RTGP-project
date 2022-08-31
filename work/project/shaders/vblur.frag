@@ -13,7 +13,7 @@ in vec2 texCoords;
 // texture with the original rendering
 uniform sampler2D screenTexture;
 uniform sampler2D immaginaryTexture;
-
+uniform bool lumaTrick;
 
 vec2 getTexelUnit(){
   vec2 unit= vec2(1./width,1./heigth);
@@ -124,7 +124,11 @@ vec3 DOFCircular(){
     float redChannel   = dot(valR,Kernel0Weights_RealX_ImY);
     float greenChannel = dot(valG,Kernel0Weights_RealX_ImY);
     float blueChannel  = dot(valB,Kernel0Weights_RealX_ImY);
-    return sqrt(vec3(redChannel,greenChannel,blueChannel));  
+    if(lumaTrick){
+      return sqrt(vec3(redChannel,greenChannel,blueChannel));  
+    }else{
+      return (vec3(redChannel,greenChannel,blueChannel));  
+    }
 }
 
 
@@ -153,7 +157,11 @@ vec3 DOFSquare(){
     float redChannel   = dot(valR,magic);
     float greenChannel = dot(valG,magic);
     float blueChannel  = dot(valB,magic);
-    return sqrt((vec3(redChannel,greenChannel,blueChannel)));  
+    if(lumaTrick){
+      return sqrt((vec3(redChannel,greenChannel,blueChannel)));  
+    }else{
+      return (vec3(redChannel,greenChannel,blueChannel));  
+    }
 }
 
 void main()

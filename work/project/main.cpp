@@ -237,7 +237,7 @@ GLfloat Kd = 0.5f;
 GLfloat Ks = 0.4f;
 GLfloat Ka = 0.1f;
 
-
+GLboolean lumaTrick=GL_TRUE;
 
 // boolean to activate/deactivate wireframe rendering
 GLboolean wireframe = GL_FALSE;
@@ -632,6 +632,8 @@ int main()
         // we activate the subroutine using the index (this is where shaders swapping happens)
         glUniformSubroutinesuiv( GL_FRAGMENT_SHADER, 1, &index);
         glUniform1i(glGetUniformLocation(horizontal_blur_shader.Program, "screenTexture"), 1);
+        glUniform1i(glGetUniformLocation(horizontal_blur_shader.Program, "lumaTrick"), lumaTrick);
+
 		// Draw the framebuffer rectangle
 		glActiveTexture(GL_TEXTURE1);
         glBindVertexArray(rectVAO);
@@ -648,7 +650,9 @@ int main()
             index = glGetSubroutineIndex(immaginary_horizontal_blur_shader.Program, GL_FRAGMENT_SHADER, blur_shaders[blur_subroutine].c_str());
             // we activate the subroutine using the index (this is where shaders swapping happens)
             glUniformSubroutinesuiv( GL_FRAGMENT_SHADER, 1, &index);
-            glUniform1i(glGetUniformLocation(horizontal_blur_shader.Program, "screenTexture"), 1);
+            glUniform1i(glGetUniformLocation(immaginary_horizontal_blur_shader.Program, "screenTexture"), 1);
+            glUniform1i(glGetUniformLocation(immaginary_horizontal_blur_shader.Program, "lumaTrick"), lumaTrick);
+
 		    // Draw the framebuffer rectangle
             glActiveTexture(GL_TEXTURE1);
             glBindVertexArray(rectVAO);
@@ -668,7 +672,8 @@ int main()
         glUniformSubroutinesuiv( GL_FRAGMENT_SHADER, 1, &index);
         glUniform1i(glGetUniformLocation(vertical_blur_shader.Program, "screenTexture"), 2);
         glUniform1i(glGetUniformLocation(vertical_blur_shader.Program, "immaginaryTexture"), 3);
- 
+        glUniform1i(glGetUniformLocation(vertical_blur_shader.Program, "lumaTrick"), lumaTrick);
+    
 		// Draw the framebuffer rectangle
 		glActiveTexture(GL_TEXTURE2);
 		glBindVertexArray(rectVAO);
@@ -802,6 +807,9 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     // if L is pressed, we activate/deactivate wireframe rendering of models
     if(key == GLFW_KEY_L && action == GLFW_PRESS){
         wireframe=!wireframe;
+    }
+    if(key == GLFW_KEY_H && action == GLFW_PRESS){
+        lumaTrick=!lumaTrick;
     }
     if(key == GLFW_KEY_P && action == GLFW_PRESS){
         pinpoint=!pinpoint;

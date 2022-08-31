@@ -13,7 +13,7 @@ in vec2 texCoords;
 
 // texture with the original rendering
 uniform sampler2D screenTexture;
-
+uniform bool lumaTrick;
 
 vec2 getTexelUnit(){
   vec2 pippo= vec2(1./width,1./heigth);
@@ -125,7 +125,9 @@ vec3 DOFCircular(){
     {
         vec2 coords = texCoords + unit*vec2(float(i),0.0);
         vec3 imageTexel = vec3(texture(screenTexture, coords));
-        imageTexel=lumaCorrection(imageTexel);
+        if(lumaTrick){
+          imageTexel=lumaCorrection(imageTexel);
+        }
         float c0r = Kernel0_RealX_ImY_RealZ_ImW[i+BLUR_SIZE].x;
         val += imageTexel * c0r;
     }
@@ -142,7 +144,9 @@ vec3 DOFSquare(){
     {
         vec2 coords = texCoords + unit*vec2(float(i),0.0);
         vec3 imageTexel = vec3(texture(screenTexture, coords));
-        imageTexel=lumaCorrection(imageTexel);
+        if(lumaTrick){
+          imageTexel=lumaCorrection(imageTexel);
+        }
         float c0r = Kernel0_RealX_ImY_RealZ_ImW[i+BLUR_SIZE].z;
         val += imageTexel * c0r;
     }
