@@ -811,6 +811,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     }
     if(key == GLFW_KEY_KP_SUBTRACT && action == GLFW_PRESS){
         life--;
+        power=(100.0-life)/10.0;
         lastHit=lastFrame;
     }
     if(key == GLFW_KEY_SPACE && action == GLFW_PRESS && gameHasStart)
@@ -927,7 +928,6 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
 
 void update_hits(float deltaTime){
-    power = (100.0-life)/10.0;
     if(lastFrame-lastHit>hitRecoverTime){
         power-=deltaTime*0.5*power;
         if(power<0.02){
@@ -1025,12 +1025,13 @@ void shoot(){
     // matrix for the inverse matrix of view and projection
     glm::mat4 unproject;
     // we create a Rigid Body with mass = 1
-    GameObject *bullet=new GameObject(camera.Position()+ (camera.Front*2.0f),bullet_size,rot,models[BULLET_MODEL]);
+    Bullet *bullet=new Bullet(camera.Position()+ (camera.Front*2.0f),bullet_size,rot,models[BULLET_MODEL]);
     bullet->setColor3(bullet_color);
     bullet->addRigidbody(bulletSimulation,SPHERE,.5f,0.3f,0.3f);
     //bullet->rb->setCollisionFlags(btCollisionObject::CF_NO_CONTACT_RESPONSE);
     bullet->rb->setGravity(btVector3(0.,0.,0.));
     bullet->rb->setUserIndex(1);
+    bullet->shoot_pos= glm::vec3(-1,-1,-1);
     scene.push_back(bullet); 
     // we must retro-project the coordinates of the mouse pointer, in order to have a point in world coordinate to be used to determine a vector from the camera (= direction and orientation of the bullet)
     // we convert the cursor position (taken from the mouse callback) from Viewport Coordinates to Normalized Device Coordinate (= [-1,1] in both coordinates)
@@ -1140,7 +1141,9 @@ void ProcessBulletHit(btCollisionObject *bullet, btCollisionObject *other){
         case 2:
             if(bulletGameobject->active){
                 Bullet* b= static_cast<Bullet*>(bulletGameobject);
-                processhit(b->shoot_pos);
+                if(b->shoot_pos!=glm::vec3(-1,-1,-1)){ //friendly fire sometimes may happen but would look buggy
+                    processhit(b->shoot_pos);
+                }
             }
             bulletGameobject->Die(lastFrame);
             break;

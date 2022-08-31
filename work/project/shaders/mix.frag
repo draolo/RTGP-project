@@ -178,7 +178,11 @@ int TurbulenceAAstep(float power, vec2 pos,int t)
 subroutine(mix_model)
 bool FullBlur(){
   return true;
+}
 
+subroutine(mix_model)
+bool NoBlur(){
+  return false;
 }
 
 subroutine(mix_model)
