@@ -1196,7 +1196,7 @@ int SetupFreetype(Shader &text_shader){
     }
 
     FT_Face face;
-    if (FT_New_Face(ft, "../../fonts/arial.ttf", 0, &face))
+    if (FT_New_Face(ft, "../../fonts/Bangers.ttf", 0, &face))
     {
         std::cout << "ERROR::FREETYPE: Failed to load font" << std::endl;  
         return -1;
