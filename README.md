@@ -2,6 +2,7 @@
 Project for the Real-time graphics programming course, the goal of the project is to create shaders that add a blur when the player gets hit by a bullet; in particular, a specific bullet might generate a blur in a random area of the FOV.  
 when restoring the player’s health, the effect might reduce over time.  
 To achieve this goal the project is divided into three phases. In the first one, we render the scene in the normal way, then we apply a blur to the image and in the last phase, we mix the two images.
+
 To make everything more appetible the project is bounded by a mini-game where you have to hit the flying enemies while avoiding their shoots.
 ## Blur Phase
 For the blur, the program offers several different options: a Gaussian blur, a mean blur, and two fake Bokeh effects, one circular and one more square.
