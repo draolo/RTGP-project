@@ -247,6 +247,7 @@ GLboolean wireframe = GL_FALSE;
 bool pinpoint=false;
 bool immortality=false;
 bool pauseEnemies=false;
+bool disableMouse=false; //usefull only to take screenshot :)
 
 // color to be passed as uniform to the shader of the plane
 GLfloat planeColor[] = {0.0,0.5,0.0};
@@ -824,6 +825,9 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if(key == GLFW_KEY_P && action == GLFW_PRESS){
         pinpoint=!pinpoint;
     }
+    if(key == GLFW_KEY_M && action == GLFW_PRESS){
+        disableMouse=!disableMouse;
+    }
     if(key == GLFW_KEY_KP_ADD && action == GLFW_PRESS){
         life++;
     }
@@ -907,6 +911,9 @@ void apply_camera_movements()
 // callback for mouse events
 void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 {
+    if(disableMouse){
+        return;
+    }
       // we move the camera view following the mouse cursor
       // we calculate the offset of the mouse cursor from the position in the last frame
       // when rendering the first frame, we do not have a "previous state" for the mouse, so we set the previous state equal to the initial values (thus, the offset will be = 0)
