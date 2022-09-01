@@ -159,7 +159,6 @@ Camera camera(glm::vec3(0.0f, 0.0f, 7.0f), GL_TRUE);
 
 GLfloat frequency = 12.0;
 GLfloat power = 0.0;
-GLfloat hitDamage =4.0;
 // number of harmonics (used in the turbulence-based subroutines)
 GLfloat harmonics = 4.0;
 
@@ -203,6 +202,10 @@ vector<std::string> shaders;
 vector<std::string> blur_shaders;
 vector<std::string> mix_shaders;
 
+string default_shader="BlinnPhong";
+string default_blur="DOFCircular";
+string default_mix="Splash";
+
 
 // the name of the subroutines are searched in the shaders, and placed in the shaders vector (to allow shaders swapping)
 void SetupShader(int shader_program, vector<std::string> *vec, int startFrom=0);
@@ -242,7 +245,8 @@ GLboolean lumaTrick=GL_TRUE;
 // boolean to activate/deactivate wireframe rendering
 GLboolean wireframe = GL_FALSE;
 bool pinpoint=false;
-
+bool immortality=false;
+bool pauseEnemies=false;
 
 // color to be passed as uniform to the shader of the plane
 GLfloat planeColor[] = {0.0,0.5,0.0};
@@ -366,10 +370,14 @@ int main()
     SetupShader(basic_shader.Program, &shaders);
     SetupShader(horizontal_blur_shader.Program, &blur_shaders, shaders.size());
     SetupShader(mix_shader.Program, &mix_shaders);
+    GLuint current_subroutine = glGetSubroutineIndex(basic_shader.Program, GL_FRAGMENT_SHADER, default_shader.c_str());
+    GLuint blur_subroutine = glGetSubroutineIndex(horizontal_blur_shader.Program, GL_FRAGMENT_SHADER, default_blur.c_str());
+    GLuint mix_subroutine = glGetSubroutineIndex(mix_shader.Program, GL_FRAGMENT_SHADER, default_mix.c_str());
 
     // we print on console the name of the first subroutine used
     PrintCurrentShader(current_subroutine, &shaders);
-    PrintCurrentShader(current_subroutine, &blur_shaders);
+    PrintCurrentShader(blur_subroutine, &blur_shaders);
+    PrintCurrentShader(mix_subroutine, &mix_shaders);
     //SetupShader(horizontal_blur_shader.Program);
     // we print on console the name of the first subroutine used
 
@@ -538,7 +546,9 @@ int main()
             bulletSimulation.dynamicsWorld->stepSimulation((deltaTime < maxSecPerFrame ? deltaTime : maxSecPerFrame),10);
             checkForCollision();
             UpdateLevel();
-            UpdateEnemies(currentFrame);
+            if(!pauseEnemies){
+                UpdateEnemies(currentFrame);
+            }
         }
 
         /////////////////// PLANE ////////////////////////////////////////////////
@@ -817,9 +827,15 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if(key == GLFW_KEY_KP_ADD && action == GLFW_PRESS){
         life++;
     }
+    if(key == GLFW_KEY_I && action == GLFW_PRESS){
+        immortality=!immortality;
+    }
+    if(key == GLFW_KEY_O && action == GLFW_PRESS){
+        pauseEnemies=!pauseEnemies;
+    }
     if(key == GLFW_KEY_KP_SUBTRACT && action == GLFW_PRESS){
         life--;
-        power=(100.0-life)/10.0;
+        power=(100.0-life)/50.0;
         lastHit=lastFrame;
     }
     if(key == GLFW_KEY_SPACE && action == GLFW_PRESS && gameHasStart)
@@ -857,8 +873,8 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     {
         new_subroutine=key-GLFW_KEY_KP_1;
         if(new_subroutine<mix_shaders.size()){
-            cout<<mix_shaders[new_subroutine]<<endl;
             mix_subroutine=new_subroutine;
+            PrintCurrentShader(mix_subroutine, &mix_shaders);
         }
     }
     // we keep trace of the pressed keys
@@ -947,7 +963,7 @@ void update_hits(float deltaTime){
             }
         }
     }
-    life= 100-power*10;
+    life= 100-power*50;
 }
 
 bool add_hit(float normx, float normy){
@@ -956,7 +972,7 @@ bool add_hit(float normx, float normy){
     }
     hitPoints[2*hit_index]=normx;
     hitPoints[2*hit_index+1]=normy;
-    power=(100.0-life)/10.0;
+    power=(100.0-life)/50.0; //power is capped beween 0 and 2
     powers[hit_index]=power;
     hit_index=(hit_index+1)%MAX_HIT;
     return true;
@@ -1054,9 +1070,10 @@ void shoot(){
     shoot.z = 1.0f;
     // w = 1.0 because we are using homogeneous coordinates
     shoot.w = 1.0f;
+    glm::mat4 fview= glm::lookAt(camera.Position()+(2.0f*camera.Front), camera.Position() + (3.0f*camera.Front), camera.Up);
 
     // we determine the inverse matrix for the projection and view transformations
-    unproject = glm::inverse(projection * view);
+    unproject = glm::inverse(projection * fview);
 
     // we convert the position of the cursor from NDC to world coordinates, and we multiply the vector by the initial speed
     shoot = glm::normalize(unproject * shoot) * shootInitialSpeed;
@@ -1120,7 +1137,7 @@ float clamp(float val, float min, float max){
 void processhit(glm::vec3 from_pos){
     life-=20;
     lastHit=lastFrame;
-    if(life<=0){
+    if(life<=0 && !immortality){
         GameOver();
         return;
     }
