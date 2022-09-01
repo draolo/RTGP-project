@@ -371,9 +371,9 @@ int main()
     SetupShader(basic_shader.Program, &shaders);
     SetupShader(horizontal_blur_shader.Program, &blur_shaders, shaders.size());
     SetupShader(mix_shader.Program, &mix_shaders);
-    GLuint current_subroutine = glGetSubroutineIndex(basic_shader.Program, GL_FRAGMENT_SHADER, default_shader.c_str());
-    GLuint blur_subroutine = glGetSubroutineIndex(horizontal_blur_shader.Program, GL_FRAGMENT_SHADER, default_blur.c_str());
-    GLuint mix_subroutine = glGetSubroutineIndex(mix_shader.Program, GL_FRAGMENT_SHADER, default_mix.c_str());
+    current_subroutine = glGetSubroutineIndex(basic_shader.Program, GL_FRAGMENT_SHADER, default_shader.c_str());
+    blur_subroutine = glGetSubroutineIndex(horizontal_blur_shader.Program, GL_FRAGMENT_SHADER, default_blur.c_str());
+    mix_subroutine = glGetSubroutineIndex(mix_shader.Program, GL_FRAGMENT_SHADER, default_mix.c_str());
 
     // we print on console the name of the first subroutine used
     PrintCurrentShader(current_subroutine, &shaders);
