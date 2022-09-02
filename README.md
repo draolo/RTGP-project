@@ -67,7 +67,7 @@ The goal of the game is to get the maximum amount of points possible by hitting 
 ### Commands
 #### Basic commands
 * **WASD**: Movement
-* **SPACE**: shoot
+* **SPACE/Left Mouse Button**: shoot
 * **Mouse movement**: Look around
 * **P**: Change Shooting Behaviour (mouse direction/always shoot in the middle)
 * **ENTER**: Start the game
@@ -78,7 +78,7 @@ The goal of the game is to get the maximum amount of points possible by hitting 
 * **NUMPAD 1-4**: Change mix shader
 * **H**: Enable/disable luma trick (only available with Bokeh effects)
 #### Debug/Cheat
-* **Mouse Click**: Add a hit at that point (only graphical effect no HP loss)
+* **Right Mouse Button**: Add a hit at that point (only graphical effect no HP loss)
 * **NUMPAD +**: Increase health by one
 * **NUMPAD -**: Decrease health by one
 * **I**: Became immortal
