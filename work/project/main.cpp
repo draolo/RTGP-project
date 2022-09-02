@@ -228,7 +228,7 @@ double cursorX,cursorY;
 bool firstMouse = true;
 
 
-glm::vec3 lightPos0 = glm::vec3(5.0f, 10.0f, 10.0f);
+glm::vec3 lightPos0 = glm::vec3(50.0f, 100.0f, 100.0f);
 //GLfloat lightColor[] = {1.0f,1.0f,1.0f};
 
 // diffusive, specular and ambient components
@@ -236,7 +236,7 @@ GLfloat diffuseColor[] = {1.0f,0.0f,0.0f};
 GLfloat specularColor[] = {1.0f,1.0f,1.0f};
 GLfloat ambientColor[] = {0.1f,0.1f,0.1f};
 // weights for the diffusive, specular and ambient components
-GLfloat Kd = 0.5f;
+GLfloat Kd = 0.9f;
 GLfloat Ks = 0.4f;
 GLfloat Ka = 0.1f;
 
@@ -828,14 +828,16 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if(key == GLFW_KEY_M && action == GLFW_PRESS){
         disableMouse=!disableMouse;
     }
-    if(key == GLFW_KEY_KP_ADD && action == GLFW_PRESS){
-        life++;
-    }
+
     if(key == GLFW_KEY_I && action == GLFW_PRESS){
         immortality=!immortality;
     }
     if(key == GLFW_KEY_O && action == GLFW_PRESS){
         pauseEnemies=!pauseEnemies;
+    }
+    if(key == GLFW_KEY_KP_ADD && action == GLFW_PRESS){
+        life++;
+        power=(100.0-life)/50.0;
     }
     if(key == GLFW_KEY_KP_SUBTRACT && action == GLFW_PRESS){
         life--;
@@ -945,7 +947,7 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-    if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) 
+    if(button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) 
     {
        double xpos, ypos;
        //getting cursor position
@@ -953,6 +955,12 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
        if(add_hit(xpos/screenWidth,1-(ypos/screenHeight))){
         cout << "Hit Position at (" << xpos << " : " << ypos<<")" << endl;
        }
+
+    }
+    if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) 
+    {
+
+       shoot();
 
     }
 }
@@ -1056,7 +1064,7 @@ void shoot(){
     // matrix for the inverse matrix of view and projection
     glm::mat4 unproject;
     // we create a Rigid Body with mass = 1
-    Bullet *bullet=new Bullet(camera.Position()+ (camera.Front*2.0f),bullet_size,rot,models[BULLET_MODEL]);
+    Bullet *bullet=new Bullet(camera.Position()+ (camera.Front*2.5f),bullet_size,rot,models[BULLET_MODEL]);
     bullet->setColor3(bullet_color);
     bullet->addRigidbody(bulletSimulation,SPHERE,.5f,0.3f,0.3f);
     //bullet->rb->setCollisionFlags(btCollisionObject::CF_NO_CONTACT_RESPONSE);
@@ -1077,7 +1085,7 @@ void shoot(){
     shoot.z = 1.0f;
     // w = 1.0 because we are using homogeneous coordinates
     shoot.w = 1.0f;
-    glm::mat4 fview= glm::lookAt(camera.Position()+(2.0f*camera.Front), camera.Position() + (3.0f*camera.Front), camera.Up);
+    glm::mat4 fview= glm::lookAt(camera.Position()+(2.5f*camera.Front), camera.Position() + (3.5f*camera.Front), camera.Up);
 
     // we determine the inverse matrix for the projection and view transformations
     unproject = glm::inverse(projection * fview);

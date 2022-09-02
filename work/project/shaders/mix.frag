@@ -219,11 +219,11 @@ float Splash(){
 
 subroutine(mix_model)
 float Distance(){
-  float depth=((texture(zmap, texCoords.st).r)-.975)*40.;
+  float depth=clamp(((texture(zmap, texCoords.st).r)-.98)*50.,0.0f,1.0);
   float deathZone= float(life)/100.0;
   if(depth>deathZone){
     return 1.0;
-  }
+  }//not a good result :) 
   if(depth> deathZone-transition_space &&deathZone!=1){
     return (depth-(deathZone-transition_space))/transition_space;
   }
@@ -232,8 +232,14 @@ float Distance(){
 
 void main()
 {
-
-  
-        FragColor=mix(texture(screenTexture, texCoords.st),texture(blurTexture, texCoords.st),Mix_Model());
+  vec4 color = texture(screenTexture, texCoords.st);
+  vec4 blur=texture(blurTexture, texCoords.st);
+  float mix_value=Mix_Model();
+ bool redOverlay=false;
+ if(redOverlay){
+    vec4 red= vec4(1,0,0,1);
+    blur=mix(blur,red,0.05);
+  }
+  FragColor=mix(color,blur,mix_value);
 
 }
