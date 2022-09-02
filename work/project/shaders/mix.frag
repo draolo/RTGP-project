@@ -4,6 +4,7 @@
 #define MAX_CONTACT_POINTS 100
 #define width 800
 #define heigth 600
+#define transition_space 0.10
 
 out vec4 FragColor;
 in vec2 texCoords;
@@ -30,7 +31,7 @@ uniform sampler2D blurTexture;
 uniform sampler2D zmap;
 
 // the "type" of the Subroutine
-subroutine bool mix_model(); //false screentexture, true blurtexture
+subroutine float mix_model(); //false screentexture, true blurtexture
 
 // Subroutine Uniform (it is conceptually similar to a C pointer function)
 subroutine uniform mix_model Mix_Model;
@@ -176,18 +177,18 @@ int TurbulenceAAstep(float power, vec2 pos,int t)
 
 
 subroutine(mix_model)
-bool FullBlur(){
-  return true;
+float FullBlur(){
+  return 1.0;
 }
 
 subroutine(mix_model)
-bool NoBlur(){
-  return false;
+float NoBlur(){
+  return 0.0;
 }
 
 subroutine(mix_model)
-bool Splash(){
-    int impacted=0;
+float Splash(){
+    int sum=0;
     int n=1;
     for(int i=0;i<contactPointNumber;i++){
       vec2 connecting=texCoords.st-normalizedContactPoints[i];
@@ -205,31 +206,34 @@ bool Splash(){
       float noise= snoise(vec3(offset*1.7,0))*MAX_OFFSET;
       
       if((length(connecting)<noise+0.15)){
-        if(TurbulenceAAstep(powers[i],normalizedContactPoints[i],n)!=0){
-          return true;
+        sum+=TurbulenceAAstep(powers[i],normalizedContactPoints[i],n);
+        if(sum>=1.0f){
+          return 1.0f;
         }
         n++;
       }
     }
-  return false;
+  return sum;
 
 }
 
 subroutine(mix_model)
-bool Distance(){
+float Distance(){
   float depth=((texture(zmap, texCoords.st).r)-.975)*40.;
   float deathZone= float(life)/100.0;
-  return depth>deathZone;
+  if(depth>deathZone){
+    return 1.0;
+  }
+  if(depth> deathZone-transition_space &&deathZone!=1){
+    return (depth-(deathZone-transition_space))/transition_space;
+  }
+  return 0.0;
 }
 
 void main()
 {
 
-    if(Mix_Model()){
-        vec4 red= vec4(1.,0.,0.,1.);
-        FragColor=mix(red,texture(blurTexture, texCoords.st),1);
-    }else{
-        //FragColor=vec4(depth,depth,depth,1);
-        FragColor=texture(screenTexture, texCoords.st);
-    }
+  
+        FragColor=mix(texture(screenTexture, texCoords.st),texture(blurTexture, texCoords.st),Mix_Model());
+
 }

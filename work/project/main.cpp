@@ -471,7 +471,7 @@ int main()
     // View matrix (=camera): position, view direction, camera "up" vector
     view = glm::lookAt(glm::vec3(0.0f, 0.0f, 7.0f), glm::vec3(0.0f, 0.0f, -7.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-    camera.addRigidbody(bulletSimulation,SPHERE,0.1,0.,.0);
+    camera.addRigidbody(bulletSimulation,SPHERE,15,0.5,.5);
 
 
     glm::mat4 planeModelMatrix = glm::mat4(1.0f);
@@ -1408,7 +1408,7 @@ void StartGame(){
         powers[i]=0.0f;
     }
     int hit_index=0;
-    camera.addRigidbody(bulletSimulation,SPHERE,5,0.,.0);
+    camera.addRigidbody(bulletSimulation,SPHERE,15,0.5,.5);
     gameHasStart=true;
     gameOver=false;
     power=0;
