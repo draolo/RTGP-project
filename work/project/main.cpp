@@ -241,6 +241,7 @@ GLfloat Ks = 0.4f;
 GLfloat Ka = 0.1f;
 
 GLboolean lumaTrick=GL_TRUE;
+GLboolean redOverlay=GL_FALSE;
 
 // boolean to activate/deactivate wireframe rendering
 GLboolean wireframe = GL_FALSE;
@@ -637,7 +638,8 @@ int main()
         
     	glBindFramebuffer(GL_FRAMEBUFFER, FBO[1]);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        
         horizontal_blur_shader.Use();
         index = glGetSubroutineIndex(horizontal_blur_shader.Program, GL_FRAGMENT_SHADER, blur_shaders[blur_subroutine].c_str());
         // we activate the subroutine using the index (this is where shaders swapping happens)
@@ -725,6 +727,7 @@ int main()
         glUniform1fv(powersLocation,MAX_HIT, powers);
         glUniform2fv(hitPointLocation,MAX_HIT, hitPoints);
         glUniform1f(harmonicsLocation, harmonics);
+        glUniform1i(glGetUniformLocation(mix_shader.Program, "redOverlay"), redOverlay);
         glUniform1i(glGetUniformLocation(mix_shader.Program, "life"), life);
         // Draw the framebuffer rectangle
 		glActiveTexture(GL_TEXTURE2);
@@ -821,6 +824,9 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     }
     if(key == GLFW_KEY_H && action == GLFW_PRESS){
         lumaTrick=!lumaTrick;
+    }
+    if(key == GLFW_KEY_B && action == GLFW_PRESS){
+        redOverlay=!redOverlay;
     }
     if(key == GLFW_KEY_P && action == GLFW_PRESS){
         pinpoint=!pinpoint;

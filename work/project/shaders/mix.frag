@@ -22,6 +22,8 @@ uniform float powers[MAX_CONTACT_POINTS];
 uniform int contactPointNumber;
 uniform int life;
 
+uniform bool redOverlay;
+
 //uniform int width;
 //uniform float heigth;
 
@@ -235,10 +237,9 @@ void main()
   vec4 color = texture(screenTexture, texCoords.st);
   vec4 blur=texture(blurTexture, texCoords.st);
   float mix_value=Mix_Model();
- bool redOverlay=false;
  if(redOverlay){
     vec4 red= vec4(1,0,0,1);
-    blur=mix(blur,red,0.05);
+    blur=mix(blur,red,0.15);
   }
   FragColor=mix(color,blur,mix_value);
 
