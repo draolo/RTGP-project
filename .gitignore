@@ -5,9 +5,9 @@
 *.slo
 *.lo
 *.o
-#*.obj
+*.obj
 *.ilk
-#.lib
+*.lib
 *.exp
 
 # Debug symbols
@@ -134,7 +134,7 @@ StyleCopReport.xml
 *_h.h
 *.ilk
 *.meta
-#*.obj
+*.obj
 *.iobj
 *.pch
 *.pdb
@@ -442,7 +442,7 @@ FodyWeavers.xsd
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
-#*.code-workspace
+*.code-workspace
 
 # Local History for Visual Studio Code
 .history/
