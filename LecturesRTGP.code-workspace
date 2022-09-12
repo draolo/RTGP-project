@@ -1,0 +1,28 @@
+{
+	"folders": [
+		{
+			"name": "IncludeDir",
+			"path": "include"
+		},
+		{
+			"name": "project",
+			"path": "work/project"
+		}		
+		{
+			"name": "shadows",
+			"path": "work/lecture05a"
+		}
+		{
+			"name": "physics",
+			"path": "work/lecture05b"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"string": "cpp",
+			"iosfwd": "cpp",
+			"chrono": "cpp",
+			"format": "cpp"
+		}
+	}
+}
